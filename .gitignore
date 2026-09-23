@@ -1,0 +1,17 @@
+# Local configuration & secrets — never commit real values
+.env
+*.local.env
+cluster/values.env
+config/goose-config.local.yaml
+k8s/goose/secret.yaml
+
+# Rendered / generated
+*.rendered.yaml
+kubeconfig
+*.kubeconfig
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
