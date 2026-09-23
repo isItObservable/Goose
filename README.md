@@ -116,9 +116,59 @@ section below, so the automation and the walkthrough stay in lockstep.
 4. **Deploy Goose** — [`k8s/goose/`](k8s/goose/) · `make deploy-goose`.
 5. **Build a simple agent** — [`recipes/01-simple-agent.yaml`](recipes/01-simple-agent.yaml).
 6. **Wire the MCPs** — [`recipes/02-dynatrace-mcp.yaml`](recipes/02-dynatrace-mcp.yaml), [`03-github-mcp.yaml`](recipes/03-github-mcp.yaml), [`05-pr-review.yaml`](recipes/05-pr-review.yaml).
-7. **Orchestrate a BMAD crew (goosetown)** — [`config/goosetown/`](config/goosetown/).
+7. **Orchestrate a BMAD crew (goosetown)** — in-process [`config/goosetown/`](config/goosetown/), or ACP-deployed [`recipes/bmad/`](recipes/bmad/) + [`k8s/goose/bmad/`](k8s/goose/bmad/).
 8. **Observe it** — [`docs/observability.md`](docs/observability.md) · dashboards in [`dashboards/`](dashboards/).
 9. **Teardown** — `make teardown`.
+
+### The BMAD crew: in-process (default) vs. ACP-deployed
+
+The crew runs a **Conductor** through a `research → plan → execute → review`
+loop over four **Delegate flocks**, following one golden rule: **READS run in
+parallel** (researcher, reviewer), **WRITES run sequentially** (planner →
+executor). There are two ways to run it, and this repo ships both.
+
+**1. In-process (the working default).** One Goose agent runs the whole crew
+from a single recipe; the flocks are logical roles inside that process.
+
+```bash
+make crew                   # runs recipes/04-bmad-crew.yaml
+```
+
+The wiring lives in [`config/goosetown/`](config/goosetown/)
+([`conductor.yaml`](config/goosetown/conductor.yaml) + `flocks/`). This is the
+simplest way to see the pattern and it works on the pinned Goose **v1.46.0**.
+
+**2. ACP-deployed (the upgrade path).** Each role becomes its **own** Goose
+agent — a Deployment + Service in the cluster — so the Conductor can dispatch
+to the roles as addressable **ACP** (Agent Client Protocol) endpoints. The
+per-role recipes are in [`recipes/bmad/`](recipes/bmad/) and the manifests in
+[`k8s/goose/bmad/`](k8s/goose/bmad/); each role sets its **own**
+`OTEL_SERVICE_NAME` (`goose-conductor`, `goose-researcher`, `goose-planner`,
+`goose-executor`, `goose-reviewer`).
+
+```bash
+make bmad-crew-acp          # applies k8s/goose/bmad/ then launches the conductor
+```
+
+| Role | Recipe | Access | Concurrency |
+|---|---|---|---|
+| Conductor | [`conductor.yaml`](recipes/bmad/conductor.yaml) | ACP client (dispatches) | orchestrates |
+| Researcher | [`researcher.yaml`](recipes/bmad/researcher.yaml) | read-only · GitHub + Dynatrace MCP | parallel-safe |
+| Planner | [`planner.yaml`](recipes/bmad/planner.yaml) | writes the plan only (no MCP) | sequential |
+| Executor | [`executor.yaml`](recipes/bmad/executor.yaml) | writes repo · GitHub MCP | sequential |
+| Reviewer | [`reviewer.yaml`](recipes/bmad/reviewer.yaml) | read-only · GitHub MCP | parallel-safe |
+
+> **⭐ Trace continuity ("if possible").** The point of the ACP form is to see
+> the whole crew run as **one distributed trace** spanning the per-role service
+> names. That only works if the Conductor propagates the W3C `traceparent`
+> across each ACP hop — the same crux the CrewAI episode hit. **Confirm your
+> pinned Goose version's ACP surface supports network multi-agent
+> client→agent dispatch *and* forwards `traceparent`.** If it does not, treat
+> `recipes/bmad/` + `k8s/goose/bmad/` as the documented upgrade path and keep
+> the in-process `make crew` as your working default — the observability story
+> (per-role spans, redaction, delta metrics) is identical either way. The
+> per-role service names and the `traceparent` breakdown are co-owned with the
+> observability dashboards; see [`docs/observability.md`](docs/observability.md).
 
 ### Try it: an agent that reviews your pull requests
 

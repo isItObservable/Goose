@@ -1,0 +1,58 @@
+# BMAD crew (ACP) — Conductor recipe.
+#
+# The Conductor is the ACP *client*. Instead of running the four flocks
+# in-process (that is recipes/04-bmad-crew.yaml), it dispatches each role to a
+# standalone Goose *agent* that exposes an ACP endpoint in the cluster (one
+# Deployment + Service per role, see k8s/goose/bmad/).
+#
+#   goose run --recipe /recipes/bmad/conductor.yaml \
+#     --params goal="Add a /healthz endpoint to the sample service and open a PR."
+#
+# The per-role ACP endpoints are supplied as env (ACP_*_URL) by the deployment
+# so nothing is hard-coded. Golden rule is preserved: READS run in parallel
+# (researcher, reviewer), WRITES run sequentially (planner → executor).
+#
+# ⭐ Trace continuity: the Conductor MUST forward the active `traceparent` on
+# every ACP dispatch so the whole crew run is ONE distributed trace across the
+# per-role service names (goose-conductor → goose-researcher → …). This is the
+# same crux the CrewAI episode hit; see README §7 and docs/observability.md.
+
+version: "1.0.0"
+title: "BMAD crew — Conductor (ACP client)"
+description: "Conductor that dispatches researcher/planner/executor/reviewer agents over ACP."
+
+settings:
+  goose_provider: "ollama"
+
+instructions: |
+  You are the Conductor of a deployed BMAD crew. You do NOT do the work
+  yourself — you are an ACP client that dispatches each role to its own Goose
+  agent and relays results on the shared channel (the "Town Wall").
+
+  Endpoints (from env, never hard-code):
+    - Researcher : ${ACP_RESEARCHER_URL}   (read-only, parallel-safe)
+    - Planner    : ${ACP_PLANNER_URL}      (writes the plan only)
+    - Executor   : ${ACP_EXECUTOR_URL}     (writes to the repo, sequential)
+    - Reviewer   : ${ACP_REVIEWER_URL}     (read-only, parallel-safe)
+
+  Workflow, preserving reads-parallel / writes-sequential:
+    1. Dispatch Researcher (and, when re-reviewing, Reviewer) — these are
+       read-only and MAY run in parallel.
+    2. Dispatch Planner — writes the plan. Sequential.
+    3. Dispatch Executor — applies the plan one state-changing step at a time.
+       Sequential; never overlap Executor with another write.
+    4. Dispatch Reviewer — read-only verdict against the plan's acceptance
+       criteria. Stop when the Reviewer approves or after two review rounds.
+
+  On EVERY ACP dispatch, propagate the active W3C `traceparent` so the crew run
+  is a single distributed trace. Broadcast each role's output before starting
+  the next role.
+
+prompt: |
+  Crew goal: {{ goal }}
+
+parameters:
+  - key: goal
+    input_type: string
+    requirement: required
+    description: "The objective the crew should accomplish."

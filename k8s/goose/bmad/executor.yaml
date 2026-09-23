@@ -1,0 +1,85 @@
+# BMAD crew (ACP) — Executor Deployment + Service.
+#
+# WRITES to the repository via the GitHub MCP — runs sequentially in the
+# workflow. OTEL_SERVICE_NAME = goose-executor.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: goose-executor
+  namespace: goose
+  labels:
+    app.kubernetes.io/name: goose-executor
+    app.kubernetes.io/part-of: goose-bmad-crew
+    goose.bmad/role: executor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: goose-executor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: goose-executor
+        app.kubernetes.io/part-of: goose-bmad-crew
+        goose.bmad/role: executor
+    spec:
+      containers:
+        - name: goose
+          image: ghcr.io/block/goose:1.46.0
+          command: ["goose"]
+          args: ["acp"]
+          ports:
+            - name: acp
+              containerPort: 4000
+          env:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-gateway-collector.goose.svc.cluster.local:4318"
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: "http/protobuf"
+            - name: OTEL_SERVICE_NAME
+              value: "goose-executor"
+            - name: GOOSE_RECIPE
+              value: "/recipes/bmad/executor.yaml"
+            - name: GOOSE_PROVIDER
+              value: "ollama"
+            - name: OLLAMA_HOST
+              valueFrom:
+                secretKeyRef: { name: goose-secrets, key: OLLAMA_BASE_URL }
+            - name: GOOSE_MODEL
+              valueFrom:
+                secretKeyRef: { name: goose-secrets, key: OLLAMA_MODEL }
+            # Write role: GitHub MCP creds.
+            - name: GITHUB_PERSONAL_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef: { name: goose-secrets, key: GITHUB_TOKEN }
+          volumeMounts:
+            - name: goose-config
+              mountPath: /root/.config/goose
+            - name: recipes
+              mountPath: /recipes
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { cpu: "2", memory: 2Gi }
+      volumes:
+        - name: goose-config
+          configMap:
+            name: goose-config
+        - name: recipes
+          configMap:
+            name: goose-recipes
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: goose-executor
+  namespace: goose
+  labels:
+    app.kubernetes.io/name: goose-executor
+    app.kubernetes.io/part-of: goose-bmad-crew
+spec:
+  selector:
+    app.kubernetes.io/name: goose-executor
+  ports:
+    - name: acp
+      port: 4000
+      targetPort: acp

@@ -1,0 +1,53 @@
+# BMAD crew (ACP) — Reviewer recipe.
+#
+# A standalone Goose agent the Conductor dispatches over ACP. Read-only, so it
+# is parallel-safe. It gets the GitHub MCP for READ-ONLY verification of the
+# Executor's changes against the plan's acceptance criteria — ideally with a
+# different model for an adversarial cross-check.
+#
+# Deployed as goose-reviewer (see k8s/goose/bmad/reviewer.yaml).
+
+version: "1.0.0"
+title: "BMAD crew — Reviewer (read-only)"
+description: "Adversarial, read-only reviewer that verifies changes against acceptance criteria."
+
+settings:
+  goose_provider: "ollama"
+
+extensions:
+  - type: stdio
+    name: github
+    cmd: docker
+    args: ["run", "-i", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "ghcr.io/github/github-mcp-server"]
+    timeout: 300
+    env_keys: [GITHUB_PERSONAL_ACCESS_TOKEN]
+
+instructions: |
+  You are the Reviewer flock. Compare the Executor's change log against the
+  plan's acceptance criteria. Use the GitHub MCP tools for READ-ONLY
+  verification — do NOT modify anything, never push or comment. Be skeptical:
+  look for missed steps, regressions, and unverified claims. Return either
+  "approved" or a concrete list of required fixes.
+
+prompt: |
+  Crew goal: {{ goal }}
+
+  Plan + acceptance criteria:
+  {{ plan }}
+
+  Executor change log:
+  {{ change_log }}
+
+parameters:
+  - key: goal
+    input_type: string
+    requirement: required
+    description: "The objective the crew is reviewing."
+  - key: plan
+    input_type: string
+    requirement: optional
+    description: "The Planner's plan with acceptance criteria."
+  - key: change_log
+    input_type: string
+    requirement: optional
+    description: "The Executor's change log, relayed by the Conductor."

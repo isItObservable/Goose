@@ -38,8 +38,12 @@ wire-mcp: ## Enable the Dynatrace + GitHub MCP extensions
 	./scripts/05-wire-mcp.sh
 
 .PHONY: crew
-crew: ## Run the goosetown BMAD-style crew
+crew: ## Run the in-process goosetown BMAD-style crew (default)
 	./scripts/06-run-bmad-crew.sh
+
+.PHONY: bmad-crew-acp
+bmad-crew-acp: ## Deploy the per-role BMAD crew over ACP + launch the conductor
+	./scripts/09-deploy-bmad-crew.sh
 
 .PHONY: review-pr
 review-pr: ## Review a pull request (PR=<number>, empty = latest open PR)
