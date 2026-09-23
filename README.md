@@ -158,17 +158,22 @@ make bmad-crew-acp          # applies k8s/goose/bmad/ then launches the conducto
 | Executor | [`executor.yaml`](recipes/bmad/executor.yaml) | writes repo · GitHub MCP | sequential |
 | Reviewer | [`reviewer.yaml`](recipes/bmad/reviewer.yaml) | read-only · GitHub MCP | parallel-safe |
 
-> **⭐ Trace continuity ("if possible").** The point of the ACP form is to see
-> the whole crew run as **one distributed trace** spanning the per-role service
-> names. That only works if the Conductor propagates the W3C `traceparent`
-> across each ACP hop — the same crux the CrewAI episode hit. **Confirm your
-> pinned Goose version's ACP surface supports network multi-agent
-> client→agent dispatch *and* forwards `traceparent`.** If it does not, treat
-> `recipes/bmad/` + `k8s/goose/bmad/` as the documented upgrade path and keep
-> the in-process `make crew` as your working default — the observability story
-> (per-role spans, redaction, delta metrics) is identical either way. The
-> per-role service names and the `traceparent` breakdown are co-owned with the
-> observability dashboards; see [`docs/observability.md`](docs/observability.md).
+> **⭐ Trace continuity — verified against v1.46.0.** The point of the ACP form
+> is to see the whole crew run as **one distributed trace** spanning the per-role
+> service names, which only works if the Conductor propagates the W3C
+> `traceparent` across each ACP hop — the same crux the CrewAI episode hit. We
+> checked the pinned Goose **v1.46.0** and it does **not** support this: `goose
+> acp` runs an ACP agent server **on stdio only** (not the HTTP `ACP_*_URL`
+> endpoints these manifests assume — ACP-over-HTTP is unreleased upstream, goose
+> issue [#6642](https://github.com/block/goose/issues/6642)), and it does not
+> auto-forward `traceparent` (ACP reserves `_meta.traceparent` only as a
+> client-side convention). **So the in-process `make crew`
+> (`recipes/04-bmad-crew.yaml`) is the working default; `recipes/bmad/` +
+> `k8s/goose/bmad/` are the documented upgrade path**, unblocked only when
+> ACP-over-HTTP lands *and* the Conductor injects `_meta.traceparent`. The
+> observability story (per-role spans, redaction, delta metrics) is identical
+> either way. Full analysis + the per-role dashboard breakdown and single-trace
+> check: [`docs/observability.md` §6](docs/observability.md).
 
 ### Try it: an agent that reviews your pull requests
 

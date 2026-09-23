@@ -175,3 +175,59 @@ goose run --recipe recipes/01-simple-agent.yaml
 If a session runs but Dynatrace shows nothing, walk the three gotchas in order:
 wrong port (4317 vs 4318), wrong flag (`GOOSE_TELEMETRY_ENABLED` instead of
 `OTEL_*`), or a receiver/exporter misconfig in the gateway.
+
+---
+
+## 6. Per-role breakdown & the ACP trace-continuity check
+
+The ACP-deployed BMAD crew (`recipes/bmad/` + `k8s/goose/bmad/`) runs each role
+as its own Goose agent with its own `OTEL_SERVICE_NAME` — `goose-conductor`,
+`goose-researcher`, `goose-planner`, `goose-executor`, `goose-reviewer` — which
+arrives on every span as the `service.name` resource attribute. The
+**agent-efficiency** dashboard surfaces this two ways:
+
+- a **`service`** dashboard variable and a **"p95 span duration by role"** tile,
+  so each crew role is independently visible; and
+- a **"Trace composition — roles per trace"** tile:
+
+  ```
+  fetch spans
+  | filter isNotNull(trace.id) and isNotNull(service.name)
+  | summarize roles = collectDistinct(service.name), spans = count(), by:{ trace.id }
+  | fieldsAdd role_count = arraySize(roles)
+  | sort role_count desc, spans desc
+  ```
+
+  This is the single-trace check. If the Conductor forwards the W3C
+  `traceparent` across each ACP hop, one crew run is **one** distributed trace and
+  the tile shows a `trace.id` with `role_count > 1` (all five roles under one
+  trace). If it does not, each role is its own trace and every `role_count == 1`.
+
+### ⚠️ Gotcha 4 — the pinned Goose v1.46.0 ACP surface does NOT forward `traceparent`
+
+Verified against the pinned **Goose v1.46.0**. Two independent prerequisites for
+a single cross-role trace are missing at this version:
+
+1. **No network ACP dispatch.** `goose acp` runs Goose as an ACP agent server
+   **on stdio only** (JSON-RPC over stdin/stdout; the only flags are
+   `--with-builtin` and `--help`). It is not the HTTP endpoint the
+   `k8s/goose/bmad/` Services (`ACP_*_URL`) assume. ACP-over-HTTP is tracked
+   upstream as an unreleased project (goose issue
+   [#6642](https://github.com/block/goose/issues/6642)), not a shipped v1.46.0
+   capability.
+2. **No automatic `traceparent` forwarding.** The Agent Client Protocol reserves
+   `traceparent` / `tracestate` / `baggage` under `params._meta` for W3C trace
+   context ([meta-propagation RFD](https://agentclientprotocol.com/rfds/meta-propagation),
+   moved to *Completed* 2026-06-03), but that is a **client-side `SHOULD`**, not
+   automatic agent forwarding — and the convention post-dates v1.46.0. The
+   Conductor at this version does not inject `_meta.traceparent` into dispatches.
+
+**Verdict:** the README §7 fallback stance is accurate. Keep the in-process
+`make crew` (`recipes/04-bmad-crew.yaml`) as the working default. The ACP form
+remains a documented upgrade path, unblocked only when both (a) ACP-over-HTTP
+transport lands upstream (issue #6642) **and** (b) the Conductor injects
+`_meta.traceparent` per the meta-propagation RFD. As of this writing **no
+released Goose version** satisfies both over a network ACP hop, so no minimum
+"works from" version can yet be named. The per-role breakdown above is
+forward-compatible: the same *Trace composition* tile flips from `role_count == 1`
+to `role_count == 5` the moment those two land, with no dashboard change.
