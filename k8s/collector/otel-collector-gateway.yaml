@@ -1,0 +1,62 @@
+# Gateway collector — StatefulSet — Goose traces + metrics.
+#
+# Receives Goose's native OTLP over HTTP on 4318, redacts prompt content,
+# converts cumulative metrics to delta, and forwards to Dynatrace.
+#
+# Tokens/URL are injected from the `goose-otel` Secret (see
+# k8s/goose/secret.example.yaml) via the collector's env expansion (${env:...}).
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: otel-gateway
+  namespace: goose
+spec:
+  mode: statefulset            # stable identity + durable sending queue on ingest
+  replicas: 1
+  image: otel/opentelemetry-collector-contrib:latest
+  env:
+    - name: DT_ENVIRONMENT_URL
+      valueFrom:
+        secretKeyRef: { name: goose-otel, key: DT_ENVIRONMENT_URL }
+    - name: DT_INGEST_TOKEN
+      valueFrom:
+        secretKeyRef: { name: goose-otel, key: DT_INGEST_TOKEN }
+  config:
+    receivers:
+      otlp:
+        protocols:
+          http:                # ⚠️ HTTP only — Goose has no gRPC exporter (4318, not 4317)
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      # Drop prompt-carrying attributes BEFORE export (Gotcha 3).
+      transform/redact:
+        error_mode: ignore
+        trace_statements:
+          - context: span
+            statements:
+              - delete_key(attributes, "user_message")
+              - delete_key(attributes, "trace_input")
+              - delete_key(attributes, "input")
+      # Goose emits cumulative sums; Dynatrace/Grail chart delta cleanly.
+      cumulativetodelta: {}
+      batch:
+        send_batch_size: 1000
+        timeout: 10s
+
+    exporters:
+      otlphttp/dynatrace:
+        endpoint: ${env:DT_ENVIRONMENT_URL}/api/v2/otlp
+        headers:
+          Authorization: "Api-Token ${env:DT_INGEST_TOKEN}"
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [transform/redact, batch]
+          exporters: [otlphttp/dynatrace]
+        metrics:
+          receivers: [otlp]
+          processors: [cumulativetodelta, batch]
+          exporters: [otlphttp/dynatrace]

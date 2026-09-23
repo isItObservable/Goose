@@ -1,0 +1,42 @@
+# Recipe 02 — agent + Dynatrace MCP extension.
+#
+# Adds the Dynatrace MCP server as a Goose extension ("extension" == MCP server).
+# The agent can now query problems, metrics and entities from your tenant.
+#
+#   goose run --recipe recipes/02-dynatrace-mcp.yaml --params question="Any open problems in the last 2 hours?"
+#
+# Requires DT_ENVIRONMENT_URL and DT_MCP_TOKEN in your environment (.env).
+
+version: "1.0.0"
+title: "Goose + Dynatrace MCP"
+description: "An agent that can query Dynatrace via the Dynatrace MCP server."
+
+settings:
+  goose_provider: "ollama"
+
+extensions:
+  - type: stdio
+    name: dynatrace
+    # The Dynatrace MCP server (npx form shown; pin the version you use).
+    cmd: npx
+    args:
+      - "-y"
+      - "@dynatrace-oss/dynatrace-mcp-server"
+    timeout: 300
+    env_keys:
+      - DT_ENVIRONMENT_URL
+      - DT_MCP_TOKEN
+
+instructions: |
+  You are an observability assistant. Use the Dynatrace MCP tools to answer
+  questions about the environment. When you cite data, state the timeframe and
+  the entity it came from. Do not fabricate metric values.
+
+prompt: |
+  {{ question }}
+
+parameters:
+  - key: question
+    input_type: string
+    requirement: required
+    description: "The observability question to answer using Dynatrace."

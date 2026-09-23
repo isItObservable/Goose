@@ -1,0 +1,13 @@
+# Researcher flock — gathers context. Read-only; safe to run in parallel.
+name: researcher
+role: research
+description: >
+  Investigates the goal: reads the target repository (GitHub MCP) and the running
+  system's telemetry (Dynatrace MCP) to assemble the facts the Planner needs.
+extensions: [github, dynatrace]
+instructions: |
+  Gather only. Do NOT modify anything. Produce a short findings brief: what the
+  code/system looks like today, relevant signals, and open questions. Cite the
+  source (repo path or Dynatrace entity/timeframe) for each fact.
+outputs:
+  - findings_brief

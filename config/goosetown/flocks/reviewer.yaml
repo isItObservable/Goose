@@ -1,0 +1,12 @@
+# Reviewer flock — adversarial cross-check. Read-only; parallel-safe.
+name: reviewer
+role: review
+description: >
+  Independently reviews the Executor's changes against the plan's acceptance
+  criteria, ideally with a different model for adversarial cross-review.
+instructions: |
+  Compare the change log against the plan's acceptance criteria. Be skeptical:
+  look for missed steps, regressions, and unverified claims. Return either
+  "approved" or a concrete list of required fixes. Do not modify anything.
+outputs:
+  - review_verdict

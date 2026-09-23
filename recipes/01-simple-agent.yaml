@@ -1,0 +1,32 @@
+# Recipe 01 — a simple single agent.
+#
+# The smallest useful Goose recipe: one instruction, the local Ollama provider,
+# no MCP extensions yet. Proves the loop works end-to-end before we add tools.
+#
+#   goose run --recipe recipes/01-simple-agent.yaml --params topic="OpenTelemetry"
+#
+# A recipe = instructions + (optional) extensions + parameters. That's the
+# reusable, shareable unit you version-control and hand to teammates.
+
+version: "1.0.0"
+title: "Simple Goose agent"
+description: "A minimal agent that answers a question using a local Ollama model."
+
+# Provider/model come from config/goose-config.yaml or your environment, so this
+# recipe stays portable. Override per-run with GOOSE_PROVIDER / GOOSE_MODEL.
+settings:
+  goose_provider: "ollama"
+  # goose_model is intentionally left to config so the recipe is model-agnostic.
+
+instructions: |
+  You are a concise technical assistant. Answer the user's question about the
+  given topic in no more than five sentences. Prefer accuracy over length.
+
+prompt: |
+  Explain {{ topic }} to a platform engineer who is new to it.
+
+parameters:
+  - key: topic
+    input_type: string
+    requirement: required
+    description: "The subject the agent should explain."

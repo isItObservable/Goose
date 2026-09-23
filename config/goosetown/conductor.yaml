@@ -1,0 +1,35 @@
+# goosetown Conductor — orchestrates the crew.
+#
+# The Conductor owns the workflow: it receives a goal, dispatches each flock in
+# order, relays their output over the shared "Town Wall" channel, and decides
+# when the work is done. Delegates ("flocks") are defined under flocks/.
+
+name: conductor
+role: orchestrator
+description: >
+  Coordinates the Researcher, Planner, Executor and Reviewer flocks through a
+  research → plan → execute → review loop and broadcasts progress on the shared
+  channel.
+
+# The shared broadcast channel every flock reads from and writes to.
+channel:
+  name: town-wall
+  mode: broadcast
+
+# Ordered flocks. reads_parallel/writes_sequential encodes the golden rule:
+# gather information concurrently, but change state one step at a time.
+workflow:
+  - flock: researcher
+    mode: reads_parallel
+  - flock: planner
+    mode: writes_sequential
+  - flock: executor
+    mode: writes_sequential
+  - flock: reviewer
+    mode: reads_parallel
+
+policy:
+  max_review_rounds: 2          # stop after two review passes even if not approved
+  stop_on: reviewer_approved    # or when max_review_rounds is reached
+  # Optional: use a different model for the reviewer for adversarial cross-check.
+  cross_review: true
