@@ -41,6 +41,10 @@ wire-mcp: ## Enable the Dynatrace + GitHub MCP extensions
 crew: ## Run the goosetown BMAD-style crew
 	./scripts/06-run-bmad-crew.sh
 
+.PHONY: review-pr
+review-pr: ## Review a pull request (PR=<number>, empty = latest open PR)
+	./scripts/08-review-pr.sh $(PR)
+
 .PHONY: dashboards
 dashboards: ## Publish the Dynatrace dashboards
 	./scripts/07-apply-dashboards.sh

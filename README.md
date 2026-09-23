@@ -115,10 +115,30 @@ section below, so the automation and the walkthrough stay in lockstep.
 3. **Point Goose at Ollama** — [`config/goose-config.yaml`](config/goose-config.yaml).
 4. **Deploy Goose** — [`k8s/goose/`](k8s/goose/) · `make deploy-goose`.
 5. **Build a simple agent** — [`recipes/01-simple-agent.yaml`](recipes/01-simple-agent.yaml).
-6. **Wire the MCPs** — [`recipes/02-dynatrace-mcp.yaml`](recipes/02-dynatrace-mcp.yaml), [`03-github-mcp.yaml`](recipes/03-github-mcp.yaml).
+6. **Wire the MCPs** — [`recipes/02-dynatrace-mcp.yaml`](recipes/02-dynatrace-mcp.yaml), [`03-github-mcp.yaml`](recipes/03-github-mcp.yaml), [`05-pr-review.yaml`](recipes/05-pr-review.yaml).
 7. **Orchestrate a BMAD crew (goosetown)** — [`config/goosetown/`](config/goosetown/).
 8. **Observe it** — [`docs/observability.md`](docs/observability.md) · dashboards in [`dashboards/`](dashboards/).
 9. **Teardown** — `make teardown`.
+
+### Try it: an agent that reviews your pull requests
+
+Section 6 wires two MCP servers into Goose — Dynatrace (read your telemetry) and
+GitHub (read and act on a repo). The GitHub MCP is what turns a chat agent into a
+teammate. The [`05-pr-review.yaml`](recipes/05-pr-review.yaml) recipe shows the
+pattern end-to-end: the agent **reads** a pull request (metadata, changed files,
+diff), writes a structured review — summary, per-file notes, and an
+`APPROVE` / `REQUEST_CHANGES` / `COMMENT` verdict — then **posts** that review
+back to the PR in a single action. Point `DEMO_REPO` at a repo you control (it
+posts a real review) and run:
+
+```bash
+make review-pr              # review the latest open PR on $DEMO_REPO
+make review-pr PR=42        # review PR #42
+```
+
+Because it runs inside the instrumented Goose pod, the whole read → reason → post
+flow shows up as one span tree in the dashboards — you can see exactly which MCP
+tool calls the agent made and how long each took.
 
 ---
 
