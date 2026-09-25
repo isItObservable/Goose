@@ -41,6 +41,21 @@ RUN git clone --depth 1 https://github.com/aaif-goose/goosetown.git /opt/gooseto
 # Make goosetown's helpers available on PATH.
 ENV PATH="/opt/goosetown:/opt/goosetown/scripts:${PATH}"
 
+# Use a single fixed wall file so the dashboard (main process) and any exec'd
+# goose session share the same Town Wall. By default the `goose` wrapper creates
+# a unique wall-<pid>-<rand>.log per invocation, which the dashboard never sees
+# because it resolves its wall at startup. Respect a pre-set GOOSE_GTWALL_FILE.
+RUN python3 - <<'PY'
+import pathlib
+p = pathlib.Path('/opt/goosetown/goose')
+s = p.read_text()
+s = s.replace(
+    'WALL_FILE="${WALLS_DIR}/wall-$$-${RANDOM}.log"',
+    'WALL_FILE="${GOOSE_GTWALL_FILE:-${WALLS_DIR}/wall-$$-${RANDOM}.log}"'
+)
+p.write_text(s)
+PY
+
 # isItObservable recipes (our "recipe") + BMAD crew roles (our "agents").
 COPY recipes/ /recipes/
 COPY config/goosetown/ /opt/goosetown/config/
@@ -48,6 +63,7 @@ COPY config/goosetown/ /opt/goosetown/config/
 # Non-root runtime user (mirrors the goose image's uid 1000).
 RUN useradd -m -u 1000 -s /bin/bash goose \
     && mkdir -p /home/goose/.config/goose /home/goose/.goosetown/walls /home/goose/.local/share/goose \
+    && touch /home/goose/.goosetown/walls/wall.log \
     && chown -R goose:goose /home/goose /recipes /opt/goosetown/config
 USER goose
 
@@ -59,7 +75,8 @@ ENV GOOSE_PROVIDER=ollama \
     GOOSE_MODEL=qwen3.6 \
     OLLAMA_HOST=http://10.0.0.185:11434 \
     GOOSETOWN_BIND_HOST=0.0.0.0 \
-    GOOSE_BIN=/usr/local/bin/goose
+    GOOSE_BIN=/usr/local/bin/goose \
+    GOOSE_GTWALL_FILE=/home/goose/.goosetown/walls/wall.log
 
 # Native OTel is wired in the k8s manifest via OTEL_* env vars (HTTP/4318).
 
