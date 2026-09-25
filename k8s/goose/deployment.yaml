@@ -59,16 +59,6 @@ spec:
             - name: GOOSE_MODEL
               valueFrom:
                 secretKeyRef: { name: goose-secrets, key: OLLAMA_MODEL }
-            # --- MCP credentials (used once extensions are enabled) ------
-            - name: GITHUB_PERSONAL_ACCESS_TOKEN
-              valueFrom:
-                secretKeyRef: { name: goose-secrets, key: GITHUB_TOKEN }
-            - name: DT_ENVIRONMENT_URL
-              valueFrom:
-                secretKeyRef: { name: goose-secrets, key: DT_ENVIRONMENT_URL }
-            - name: DT_MCP_TOKEN
-              valueFrom:
-                secretKeyRef: { name: goose-secrets, key: DT_MCP_TOKEN }
           volumeMounts:
             - name: goose-config
               mountPath: /home/goose/.config/goose
