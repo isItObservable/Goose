@@ -45,6 +45,10 @@ crew: ## Run the in-process goosetown BMAD-style crew (default)
 bmad-crew-acp: ## Deploy the per-role BMAD crew over ACP + launch the conductor
 	./scripts/09-deploy-bmad-crew.sh
 
+.PHONY: goosetown
+goosetown: ## Deploy goosetown (orchestration + real-time dashboard UI)
+	./scripts/10-deploy-goosetown.sh
+
 .PHONY: review-pr
 review-pr: ## Review a pull request (PR=<number>, empty = latest open PR)
 	./scripts/08-review-pr.sh $(PR)
