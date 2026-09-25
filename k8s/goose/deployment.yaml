@@ -72,8 +72,24 @@ spec:
           volumeMounts:
             - name: goose-config
               mountPath: /home/goose/.config/goose
+            # Mount each recipe via subPath (not a directory) — goose v1.52.0
+            # canonicalizes recipe paths and hits ELOOP on the ConfigMap
+            # `..data` symlink indirection.
             - name: recipes
-              mountPath: /recipes
+              mountPath: /recipes/01-simple-agent.yaml
+              subPath: 01-simple-agent.yaml
+            - name: recipes
+              mountPath: /recipes/02-dynatrace-mcp.yaml
+              subPath: 02-dynatrace-mcp.yaml
+            - name: recipes
+              mountPath: /recipes/03-github-mcp.yaml
+              subPath: 03-github-mcp.yaml
+            - name: recipes
+              mountPath: /recipes/04-bmad-crew.yaml
+              subPath: 04-bmad-crew.yaml
+            - name: recipes
+              mountPath: /recipes/05-pr-review.yaml
+              subPath: 05-pr-review.yaml
           resources:
             requests: { cpu: 250m, memory: 512Mi }
             limits: { cpu: "2", memory: 2Gi }
