@@ -23,7 +23,10 @@ spec:
     spec:
       containers:
         - name: goosetown
-          image: ghcr.io/isitobservable/goosetown:latest
+          # k8squad cluster registry (pulled without a secret). The public
+          # ghcr.io/isitobservable/goosetown image is the tutorial's canonical
+          # tag once the GHCR package visibility is set to public.
+          image: 10.0.0.13/k8squad/goosetown:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 4242
