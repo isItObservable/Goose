@@ -27,7 +27,9 @@ def post_to_wall(sender: str, message: str) -> None:
     in goosetown-ui). Single-line message only (no embedded newlines).
     """
     try:
-        line = f"{datetime.now().strftime('%H:%M:%S')}|{sender}|{message.replace(chr(10), ' ').replace('|', '\\|')}"
+        safe_msg = message.replace("\n", " ").replace("|", "\\|")
+        ts = datetime.now().strftime("%H:%M:%S")
+        line = f"{ts}|{sender}|{safe_msg}"
         os.makedirs(os.path.dirname(WALL_FILE), exist_ok=True)
         with open(WALL_FILE, "a", encoding="utf-8") as f:
             f.write(line + "\n")
