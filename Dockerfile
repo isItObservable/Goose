@@ -52,10 +52,14 @@ RUN useradd -m -u 1000 -s /bin/bash goose \
 USER goose
 
 # Defaults — overridable at run/deploy time via env.
+# GOOSE_BIN must point at the real binary: /opt/goosetown/goose (the launcher
+# wrapper) resolves `command -v goose` and, because /opt/goosetown is first on
+# PATH, would otherwise find itself and recurse forever.
 ENV GOOSE_PROVIDER=ollama \
     GOOSE_MODEL=qwen3.6 \
     OLLAMA_HOST=http://10.0.0.185:11434 \
-    GOOSETOWN_BIND_HOST=0.0.0.0
+    GOOSETOWN_BIND_HOST=0.0.0.0 \
+    GOOSE_BIN=/usr/local/bin/goose
 
 # Native OTel is wired in the k8s manifest via OTEL_* env vars (HTTP/4318).
 
