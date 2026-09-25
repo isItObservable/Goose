@@ -11,10 +11,28 @@ import json
 import os
 import re
 import subprocess
+from datetime import datetime
 
 from starlette.applications import Starlette
 from starlette.responses import HTMLResponse, JSONResponse
 from starlette.routing import Route
+
+WALL_FILE = os.environ.get("GOOSE_GTWALL_FILE", os.path.expanduser("~/.goosetown/walls/wall.log"))
+
+
+def post_to_wall(sender: str, message: str) -> None:
+    """Append a line to the shared Town Wall so the goosetown dashboard sees it.
+
+    Wall line format is `<HH:MM:SS>|<sender_id>|<message>` (see parse_wall_line
+    in goosetown-ui). Single-line message only (no embedded newlines).
+    """
+    try:
+        line = f"{datetime.now().strftime('%H:%M:%S')}|{sender}|{message.replace(chr(10), ' ').replace('|', '\\|')}"
+        os.makedirs(os.path.dirname(WALL_FILE), exist_ok=True)
+        with open(WALL_FILE, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except OSError:
+        pass  # wall is best-effort; the chat reply still returns
 
 INDEX_HTML = """<!DOCTYPE html>
 <html lang="en">
@@ -119,6 +137,10 @@ def run_goose(message: str, session: str | None) -> dict:
             session = m.group(1)
     if proc.returncode != 0 and not reply:
         return {"session": session, "error": (proc.stderr or "unknown error").strip()[-500:]}
+
+    # Reflect the turn onto the shared Town Wall so the dashboard shows it.
+    post_to_wall("user", message)
+    post_to_wall("goose", reply)
     return {"session": session, "reply": reply}
 
 
