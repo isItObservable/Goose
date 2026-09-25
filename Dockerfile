@@ -43,8 +43,9 @@ ENV PATH="/opt/goosetown:/opt/goosetown/scripts:${PATH}"
 
 # Use a single fixed wall file so the dashboard (main process) and any exec'd
 # goose session share the same Town Wall. By default the `goose` wrapper creates
-# a unique wall-<pid>-<rand>.log per invocation, which the dashboard never sees
-# because it resolves its wall at startup. Respect a pre-set GOOSE_GTWALL_FILE.
+# a unique wall-<pid>-<rand>.log per invocation (which the dashboard never sees
+# because it resolves its wall at startup) and deletes it on exit. Patch the
+# wrapper to respect a pre-set GOOSE_GTWALL_FILE and keep it across sessions.
 RUN python3 - <<'PY'
 import pathlib
 p = pathlib.Path('/opt/goosetown/goose')
@@ -52,6 +53,11 @@ s = p.read_text()
 s = s.replace(
     'WALL_FILE="${WALLS_DIR}/wall-$$-${RANDOM}.log"',
     'WALL_FILE="${GOOSE_GTWALL_FILE:-${WALLS_DIR}/wall-$$-${RANDOM}.log}"'
+)
+# Keep the shared wall across sessions (don't delete it on exit).
+s = s.replace(
+    '    rm -f "$WALL_FILE"\n',
+    '    [[ -n "${GOOSETOWN_WALL_PERSIST:-}" ]] || rm -f "$WALL_FILE"\n'
 )
 p.write_text(s)
 PY
@@ -76,7 +82,8 @@ ENV GOOSE_PROVIDER=ollama \
     OLLAMA_HOST=http://10.0.0.185:11434 \
     GOOSETOWN_BIND_HOST=0.0.0.0 \
     GOOSE_BIN=/usr/local/bin/goose \
-    GOOSE_GTWALL_FILE=/home/goose/.goosetown/walls/wall.log
+    GOOSE_GTWALL_FILE=/home/goose/.goosetown/walls/wall.log \
+    GOOSETOWN_WALL_PERSIST=1
 
 # Native OTel is wired in the k8s manifest via OTEL_* env vars (HTTP/4318).
 
