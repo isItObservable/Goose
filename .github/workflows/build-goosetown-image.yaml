@@ -49,11 +49,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Make the image public so the k8s cluster can pull it without a pull
-      # secret (matches bmad-crew, which is public).
-      - name: Make image public
-        run: |
-          gh api --method PATCH "/orgs/${{ github.repository_owner }}/packages/container/goosetown" \
-            -f visibility=public
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # NOTE: no "make public" step here. The GHCR package stays private (private
+      # repo -> private package), and GITHUB_TOKEN cannot change package visibility
+      # (that needs a PAT with admin on the package). The k8s cluster pulls the
+      # image from the local registry (10.0.0.13/k8squad/goosetown) instead; flip
+      # the GHCR package to public via a PAT with `packages` scope when needed.
