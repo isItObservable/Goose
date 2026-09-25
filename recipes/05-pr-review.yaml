@@ -25,7 +25,7 @@ extensions:
     name: github
     # GitHub's official MCP server, run as a native binary (no docker-in-docker).
     cmd: github-mcp-server
-    args: []
+    args: ["stdio"]
     timeout: 300
     env_keys:
       - GITHUB_PERSONAL_ACCESS_TOKEN

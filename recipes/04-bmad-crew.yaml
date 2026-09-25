@@ -23,7 +23,7 @@ extensions:
   - type: stdio
     name: github
     cmd: github-mcp-server
-    args: []
+    args: ["stdio"]
     timeout: 300
     env_keys: [GITHUB_PERSONAL_ACCESS_TOKEN]
 

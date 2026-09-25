@@ -21,7 +21,7 @@ extensions:
     # The binary is baked into the goosetown image; the hosted/remote MCP endpoint
     # also works — see https://github.com/github/github-mcp-server.
     cmd: github-mcp-server
-    args: []
+    args: ["stdio"]
     timeout: 300
     env_keys:
       - GITHUB_PERSONAL_ACCESS_TOKEN
