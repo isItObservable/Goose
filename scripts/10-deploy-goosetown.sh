@@ -16,6 +16,15 @@ kubectl -n "${NAMESPACE}" get secret goose-secrets -o yaml 2>/dev/null \
   | sed "s/namespace: ${NAMESPACE}/namespace: ${GT_NS}/" \
   | kubectl apply -f - || warn "could not copy goose-secrets — create it in ${GT_NS} manually"
 
+log "Creating the recipes ConfigMap (hot-reloadable, no image rebuild)…"
+kubectl -n "${GT_NS}" create configmap goosetown-recipes \
+  --from-file=01-simple-agent.yaml="${REPO_ROOT}/recipes/01-simple-agent.yaml" \
+  --from-file=02-dynatrace-mcp.yaml="${REPO_ROOT}/recipes/02-dynatrace-mcp.yaml" \
+  --from-file=03-github-mcp.yaml="${REPO_ROOT}/recipes/03-github-mcp.yaml" \
+  --from-file=04-bmad-crew.yaml="${REPO_ROOT}/recipes/04-bmad-crew.yaml" \
+  --from-file=05-pr-review.yaml="${REPO_ROOT}/recipes/05-pr-review.yaml" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
 log "Applying the goosetown deployment + service…"
 kubectl apply -f "${REPO_ROOT}/k8s/goosetown/deployment.yaml"
 kubectl apply -f "${REPO_ROOT}/k8s/goosetown/service.yaml"

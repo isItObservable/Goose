@@ -50,6 +50,26 @@ spec:
                 secretKeyRef: { name: goose-secrets, key: OLLAMA_BASE_URL }
             - name: GOOSETOWN_BIND_HOST
               value: "0.0.0.0"
+          volumeMounts:
+            # Recipes are also available as a ConfigMap so they can be updated
+            # without rebuilding the image. subPath (not a directory mount) avoids
+            # the goose v1.52.0 ELOOP on ConfigMap `..data` symlinks. The bmad/*
+            # roles stay baked into the image.
+            - name: recipes
+              mountPath: /recipes/01-simple-agent.yaml
+              subPath: 01-simple-agent.yaml
+            - name: recipes
+              mountPath: /recipes/02-dynatrace-mcp.yaml
+              subPath: 02-dynatrace-mcp.yaml
+            - name: recipes
+              mountPath: /recipes/03-github-mcp.yaml
+              subPath: 03-github-mcp.yaml
+            - name: recipes
+              mountPath: /recipes/04-bmad-crew.yaml
+              subPath: 04-bmad-crew.yaml
+            - name: recipes
+              mountPath: /recipes/05-pr-review.yaml
+              subPath: 05-pr-review.yaml
           readinessProbe:
             httpGet: { path: "/", port: 4242 }
             initialDelaySeconds: 5
@@ -57,3 +77,7 @@ spec:
           resources:
             requests: { cpu: 250m, memory: 512Mi }
             limits: { cpu: "2", memory: 2Gi }
+      volumes:
+        - name: recipes
+          configMap:
+            name: goosetown-recipes
