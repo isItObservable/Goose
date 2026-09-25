@@ -38,6 +38,14 @@ RUN git clone --depth 1 https://github.com/aaif-goose/goosetown.git /opt/gooseto
     && git -C /opt/goosetown checkout ${GOOSETOWN_REF} 2>/dev/null || true \
     && rm -rf /opt/goosetown/.git
 
+# GitHub MCP server (single Go binary) — lets the agent read/act on GitHub repos
+# without docker-in-docker. Replaces the `docker run ghcr.io/github/github-mcp-server`
+# transport in the recipes. Auth comes from GITHUB_PERSONAL_ACCESS_TOKEN at run time.
+ARG GH_MCP_VERSION=v1.12.2
+RUN curl -fsSL "https://github.com/github/github-mcp-server/releases/download/${GH_MCP_VERSION}/github-mcp-server_Linux_x86_64.tar.gz" \
+    | tar xz -C /usr/local/bin github-mcp-server \
+    && chmod +x /usr/local/bin/github-mcp-server
+
 # Make goosetown's helpers available on PATH.
 ENV PATH="/opt/goosetown:/opt/goosetown/scripts:${PATH}"
 

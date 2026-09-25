@@ -17,16 +17,11 @@ settings:
 extensions:
   - type: stdio
     name: github
-    # GitHub's official MCP server (Docker form shown; the hosted/remote MCP
-    # endpoint also works — see https://github.com/github/github-mcp-server).
-    cmd: docker
-    args:
-      - "run"
-      - "-i"
-      - "--rm"
-      - "-e"
-      - "GITHUB_PERSONAL_ACCESS_TOKEN"
-      - "ghcr.io/github/github-mcp-server"
+    # GitHub's official MCP server, run as a native binary (no docker-in-docker).
+    # The binary is baked into the goosetown image; the hosted/remote MCP endpoint
+    # also works — see https://github.com/github/github-mcp-server.
+    cmd: github-mcp-server
+    args: []
     timeout: 300
     env_keys:
       - GITHUB_PERSONAL_ACCESS_TOKEN

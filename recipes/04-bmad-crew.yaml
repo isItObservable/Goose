@@ -8,9 +8,9 @@
 #
 # The crew wiring lives in config/goosetown/ (conductor.yaml + flocks/).
 #
-# MCP extensions (Dynatrace/GitHub) are NOT declared here — they are optional and
-# require their own secrets (DT_ENVIRONMENT_URL + DT_MCP_TOKEN / GitHub PAT). The
-# crew runs standalone; see 02/03/05 for the explicit MCP-wiring recipes.
+# The GitHub MCP extension is declared (the crew can act on the repo); the
+# Dynatrace MCP is intentionally omitted — its DT_ENVIRONMENT_URL lives in the
+# collector, not the agent pod.
 
 version: "1.0.0"
 title: "goosetown BMAD crew"
@@ -18,6 +18,14 @@ description: "A conductor-led, multi-agent crew (research/plan/execute/review) o
 
 settings:
   goose_provider: "ollama"
+
+extensions:
+  - type: stdio
+    name: github
+    cmd: github-mcp-server
+    args: []
+    timeout: 300
+    env_keys: [GITHUB_PERSONAL_ACCESS_TOKEN]
 
 instructions: |
   You are the Conductor of a goosetown crew. Given a goal, coordinate four

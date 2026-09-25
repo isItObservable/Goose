@@ -48,6 +48,10 @@ spec:
             - name: OLLAMA_HOST
               valueFrom:
                 secretKeyRef: { name: goose-secrets, key: OLLAMA_BASE_URL }
+            # GitHub MCP auth (the agent can read/act on repos).
+            - name: GITHUB_PERSONAL_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef: { name: goose-secrets, key: GITHUB_TOKEN }
             - name: GOOSETOWN_BIND_HOST
               value: "0.0.0.0"
           volumeMounts:
