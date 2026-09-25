@@ -1,5 +1,5 @@
-# Goosetown dashboard service — LoadBalancer so the "geese on a map" UI is
-# reachable from outside the cluster (mirrors bmad-crew-ui at 10.0.0.220).
+# Goosetown service — LoadBalancer exposing both the dashboard (4242) and the
+# web chat UI (4250). Chat is reachable at http://<LB-IP>:4251.
 apiVersion: v1
 kind: Service
 metadata:
@@ -15,3 +15,6 @@ spec:
     - name: http
       port: 80
       targetPort: 4242
+    - name: chat
+      port: 4251
+      targetPort: 4250

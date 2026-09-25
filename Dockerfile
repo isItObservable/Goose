@@ -73,6 +73,8 @@ PY
 # isItObservable recipes (our "recipe") + BMAD crew roles (our "agents").
 COPY recipes/ /recipes/
 COPY config/goosetown/ /opt/goosetown/config/
+# Web chat UI (multi-turn prompt/response via `goose run --name/--resume`).
+COPY chat-ui/ /opt/chat-ui/
 
 # Non-root runtime user (mirrors the goose image's uid 1000).
 RUN useradd -m -u 1000 -s /bin/bash goose \
