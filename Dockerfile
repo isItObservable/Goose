@@ -13,7 +13,9 @@
 FROM ghcr.io/aaif-goose/goose:latest AS goose-bin
 
 # --- Stage 2: goosetown runtime ----------------------------------------------
-FROM python:3.11-slim
+# Pin to Debian bookworm (glibc 2.36) to match the goose image's base and avoid
+# any ABI surprises with the copied Rust binary.
+FROM python:3.11-slim-bookworm
 
 # goose CLI (native OTel, verified on v1.52.0)
 COPY --from=goose-bin /usr/local/bin/goose /usr/local/bin/goose
