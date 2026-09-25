@@ -23,6 +23,17 @@ spec:
       labels:
         app.kubernetes.io/name: goosetown
     spec:
+      initContainers:
+        # The emptyDir starts empty and hides the image's pre-created wall.log,
+        # so recreate it here so the dashboard resolves the wall at startup.
+        - name: init-goose-state
+          image: 10.0.0.13/k8squad/goosetown:latest
+          command: ["sh", "-c", "mkdir -p /home/goose/.goosetown/walls /home/goose/.local/share/goose && touch /home/goose/.goosetown/walls/wall.log && chown -R 1000:1000 /home/goose/.goosetown /home/goose/.local/share/goose"]
+          volumeMounts:
+            - name: goose-state
+              mountPath: /home/goose/.goosetown
+            - name: goose-state
+              mountPath: /home/goose/.local/share/goose
       containers:
         - name: goosetown
           image: 10.0.0.13/k8squad/goosetown:latest
