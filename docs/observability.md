@@ -22,7 +22,7 @@ The Goose deployment (`k8s/goose/deployment.yaml`) carries this env block:
 
 ```yaml
 - name: OTEL_EXPORTER_OTLP_ENDPOINT
-  value: "http://otel-gateway-collector.goose.svc.cluster.local:4318"
+  value: "http://otel-gateway-collector.observability.svc.cluster.local:4318"
 - name: OTEL_EXPORTER_OTLP_PROTOCOL
   value: "http/protobuf"
 - name: OTEL_SERVICE_NAME
