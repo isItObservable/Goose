@@ -13,7 +13,7 @@ metadata:
 spec:
   mode: statefulset            # stable identity + durable sending queue on ingest
   replicas: 1
-  image: otel/opentelemetry-collector-contrib:latest
+  image: otel/opentelemetry-collector-contrib:0.156.0
   env:
     - name: DT_ENVIRONMENT_URL
       valueFrom:
@@ -45,7 +45,7 @@ spec:
         timeout: 10s
 
     exporters:
-      otlphttp/dynatrace:
+      otlp_http/dynatrace:
         endpoint: ${env:DT_ENVIRONMENT_URL}/api/v2/otlp
         headers:
           Authorization: "Api-Token ${env:DT_INGEST_TOKEN}"
@@ -55,8 +55,8 @@ spec:
         traces:
           receivers: [otlp]
           processors: [transform/redact, batch]
-          exporters: [otlphttp/dynatrace]
+          exporters: [otlp_http/dynatrace]
         metrics:
           receivers: [otlp]
           processors: [cumulativetodelta, batch]
-          exporters: [otlphttp/dynatrace]
+          exporters: [otlp_http/dynatrace]

@@ -6,9 +6,13 @@ it at a collector, and the signals flow. This document is the deep-dive: how the
 signals are shaped, how we collect and clean them, the three gotchas, and how the
 two dashboards are built.
 
-> Pin note: signals in this tutorial were verified against **Goose v1.46.0**.
-> Attribute and metric names can shift between versions — re-check against your
-> pinned version if a dashboard tile comes up empty.
+> Pin note: signals in this tutorial were verified against **Goose v1.52.0**
+> (`ghcr.io/aaif-goose/goose:latest`). The originally-pinned
+> `ghcr.io/block/goose:1.46.0` does **not exist** (404) — the image moved to the
+> `aaif-goose` org, and the last version tag (`1.37`) **panics on OTLP export**
+> (goose#9494: BatchSpanProcessor has no Tokio reactor). Attribute and metric
+> names can shift between versions — re-check against your pinned version if a
+> dashboard tile comes up empty.
 
 ---
 
@@ -204,6 +208,13 @@ arrives on every span as the `service.name` resource attribute. The
   trace). If it does not, each role is its own trace and every `role_count == 1`.
 
 ### ⚠️ Gotcha 4 — the pinned Goose v1.46.0 ACP surface does NOT forward `traceparent`
+
+> ⚠️ **Updated during live testing (k8squad):** this section was written against
+> the (nonexistent) `goose:1.46.0`. On **v1.52.0** the `goose acp` stdio-only
+> claim is **no longer accurate** — `goose serve` now provides an ACP server
+> over **HTTP and WebSocket** (`--host`/`--port`, default `127.0.0.1:3284`), so
+> a network ACP hop *is* available. The `traceparent`-forwarding verdict below
+> still needs a live multi-role run to confirm (not yet re-verified on v1.52.0).
 
 Verified against the pinned **Goose v1.46.0**. Two independent prerequisites for
 a single cross-role trace are missing at this version:

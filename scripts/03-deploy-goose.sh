@@ -14,6 +14,7 @@ kubectl -n "${NAMESPACE}" create secret generic goose-secrets \
   --from-literal=GITHUB_TOKEN="${GITHUB_TOKEN:-}" \
   --from-literal=DT_ENVIRONMENT_URL="${DT_ENVIRONMENT_URL}" \
   --from-literal=DT_MCP_TOKEN="${DT_MCP_TOKEN:-}" \
+  --from-literal=GOOSE_SERVER_SECRET_KEY="${GOOSE_SERVER_SECRET_KEY:-$(openssl rand -hex 32)}" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 log "Creating config + recipes ConfigMaps from the repo…"

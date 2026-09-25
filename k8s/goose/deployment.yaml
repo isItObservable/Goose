@@ -25,12 +25,16 @@ spec:
     spec:
       containers:
         - name: goose
-          # Pin to a known-good version (telemetry verified on v1.46.0).
-          image: ghcr.io/block/goose:1.46.0
+          # Pin note: ghcr.io/block/goose:1.46.0 does NOT exist (404). The image
+          # moved to aaif-goose; the last version tag is 1.37 (which panics on
+          # OTLP export — goose#9494). `latest` resolves to v1.52.0, where native
+          # OTel export is verified working (traces + metrics, HTTP/4318).
+          image: ghcr.io/aaif-goose/goose:latest
           # --- Run mode -----------------------------------------------------
-          # Server/agent mode (long-lived) — default:
+          # Server/agent mode (long-lived) — default. `goose agent` does not
+          # exist; `goose serve` is the ACP server over HTTP/WebSocket.
           command: ["goose"]
-          args: ["agent"]
+          args: ["serve", "--host", "0.0.0.0"]
           # Headless recipe mode (batch) — use a Job instead, e.g.:
           #   args: ["run", "--recipe", "/recipes/01-simple-agent.yaml",
           #          "--params", "topic=OpenTelemetry"]
@@ -42,6 +46,10 @@ spec:
               value: "http/protobuf"
             - name: OTEL_SERVICE_NAME
               value: "goose"
+            # --- ACP server auth (required by `goose serve` in v1.52+) ----
+            - name: GOOSE_SERVER__SECRET_KEY
+              valueFrom:
+                secretKeyRef: { name: goose-secrets, key: GOOSE_SERVER_SECRET_KEY }
             # --- LLM provider (Ollama) -----------------------------------
             - name: GOOSE_PROVIDER
               value: "ollama"
@@ -63,7 +71,7 @@ spec:
                 secretKeyRef: { name: goose-secrets, key: DT_MCP_TOKEN }
           volumeMounts:
             - name: goose-config
-              mountPath: /root/.config/goose
+              mountPath: /home/goose/.config/goose
             - name: recipes
               mountPath: /recipes
           resources:
