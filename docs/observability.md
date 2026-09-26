@@ -116,11 +116,33 @@ exports to Dynatrace via `otlphttp`. `DaemonSet` mode = one collector per node.
 | `goose.tool_calls` | Number of tool invocations. |
 | `goose.tool_completions` | Number of tool invocations that completed. |
 | `goose.session_completions` | Number of sessions completed. |
+| `goose.session_starts` | Number of sessions started (emitted at session open). |
+| `goose.cli_commands` | Number of CLI commands invoked (emitted at invocation). |
 
 > **No p95 from Goose directly.** Because Goose emits sums and not histograms,
 > you cannot get a percentile latency straight from its metrics. If you need
 > percentiles, derive them from span durations (below) or compute them in the
 > backend from raw spans.
+
+> ⚠️ **Why the metrics can look "absent" (verified live).** All `goose.*` metrics
+> are **session-scoped monotonic counters** emitted via `tracing`'s
+> `monotonic_counter` field syntax, and each fires on a *specific* code path:
+>
+> - `goose.session_starts` + `goose.cli_commands` — emitted **at session open /
+>   command invocation** (`crates/goose-cli/src/cli.rs`).
+> - `goose.session_completions` / `session_duration_ms` / `session_tokens` —
+>   emitted **only at session completion** (`log_session_completion`), and
+>   `session_tokens` additionally only when `total_tokens > 0` (the LLM must
+>   report usage).
+> - `goose.tool_calls` / `tool_completions` — emitted **only when tools are
+>   actually invoked**.
+>
+> Consequence: an **idle `goose serve`** (no ACP clients connected, no sessions
+> run) emits **none** of these — the `cumulativetodelta` collector processor is
+> *not* the culprit (verified: counters like `cli_commands`/`session_starts` flow
+> straight through to Grail). The engine-health tiles stay empty until a real
+> session runs to completion (and uses tools). For a demo, drive at least one
+> full session with a tool call; the counters will appear.
 
 ### Traces (the gen_ai span tree)
 
@@ -207,38 +229,40 @@ arrives on every span as the `service.name` resource attribute. The
   the tile shows a `trace.id` with `role_count > 1` (all five roles under one
   trace). If it does not, each role is its own trace and every `role_count == 1`.
 
-### ⚠️ Gotcha 4 — the pinned Goose v1.46.0 ACP surface does NOT forward `traceparent`
+### ⚠️ Gotcha 4 — Goose v1.52.0 ships ACP-over-HTTP/WS, but still does NOT forward `traceparent`
 
-> ⚠️ **Updated during live testing (k8squad):** this section was written against
-> the (nonexistent) `goose:1.46.0`. On **v1.52.0** the `goose acp` stdio-only
-> claim is **no longer accurate** — `goose serve` now provides an ACP server
-> over **HTTP and WebSocket** (`--host`/`--port`, default `127.0.0.1:3284`), so
-> a network ACP hop *is* available. The `traceparent`-forwarding verdict below
-> still needs a live multi-role run to confirm (not yet re-verified on v1.52.0).
+Re-verified against **Goose v1.52.0** (`ghcr.io/aaif-goose/goose:latest`) by
+reading the shipped source. The old "stdio-only" verdict is half-stale; the
+`traceparent` verdict is unchanged and now backed by source evidence:
 
-Verified against the pinned **Goose v1.46.0**. Two independent prerequisites for
-a single cross-role trace are missing at this version:
+1. **Network ACP dispatch — NOW SHIPS.** `goose serve` starts an ACP agent
+   server over **HTTP and WebSocket** (`--host`/`--port`, default
+   `127.0.0.1:3284`; `--dangerously-unauthenticated` or `GOOSE_SERVER__SECRET_KEY`
+   for auth). This is the endpoint the `k8s/goose/bmad/` Services (`ACP_*_URL`)
+   assume. (The old `goose acp` subcommand still exists and remains stdio-only;
+   `goose serve` is the network path.)
+2. **`traceparent` forwarding — STILL MISSING.** Goose registers the W3C
+   propagator (`crates/goose/src/otel/otlp.rs`: `global::set_text_map_propagator(TraceContextPropagator::new())`),
+   but the ACP transport never applies it. `crates/goose/src/acp/transport/mod.rs`
+   builds the server from plain `axum` + `tower_http::cors`, and the client side
+   uses the external `agent_client_protocol_http` (rmcp) crate — there is **no
+   `opentelemetry_http` instrumentation, no `tower-http` `TraceLayer`, and no
+   `inject()`/`extract()` of trace context** anywhere in the codebase (zero hits
+   for `traceparent`, `trace_context`, or `opentelemetry_http`). The Conductor
+   therefore does **not** inject `traceparent` (or the ACP
+   [meta-propagation RFD](https://agentclientprotocol.com/rfds/meta-propagation)'s
+   `_meta.traceparent`) into dispatches, and the role server does not extract one.
 
-1. **No network ACP dispatch.** `goose acp` runs Goose as an ACP agent server
-   **on stdio only** (JSON-RPC over stdin/stdout; the only flags are
-   `--with-builtin` and `--help`). It is not the HTTP endpoint the
-   `k8s/goose/bmad/` Services (`ACP_*_URL`) assume. ACP-over-HTTP is tracked
-   upstream as an unreleased project (goose issue
-   [#6642](https://github.com/block/goose/issues/6642)), not a shipped v1.46.0
-   capability.
-2. **No automatic `traceparent` forwarding.** The Agent Client Protocol reserves
-   `traceparent` / `tracestate` / `baggage` under `params._meta` for W3C trace
-   context ([meta-propagation RFD](https://agentclientprotocol.com/rfds/meta-propagation),
-   moved to *Completed* 2026-06-03), but that is a **client-side `SHOULD`**, not
-   automatic agent forwarding — and the convention post-dates v1.46.0. The
-   Conductor at this version does not inject `_meta.traceparent` into dispatches.
+**Verdict:** the README §7 fallback stance holds. Each ACP role is its own
+`service.name` but remains its own trace — the *Trace composition* tile shows
+`role_count == 1`, never `5`. Keep the in-process `make crew`
+(`recipes/04-bmad-crew.yaml`) as the working default. The ACP form is unblocked
+only when Goose wires the OTel propagator into the ACP HTTP transport (or injects
+`_meta.traceparent` client-side). Until then there is no "works from" version for
+a single distributed trace across a network ACP hop, and no dashboard change is
+needed — the tile flips `role_count == 1` → `5` automatically when it lands.
 
-**Verdict:** the README §7 fallback stance is accurate. Keep the in-process
-`make crew` (`recipes/04-bmad-crew.yaml`) as the working default. The ACP form
-remains a documented upgrade path, unblocked only when both (a) ACP-over-HTTP
-transport lands upstream (issue #6642) **and** (b) the Conductor injects
-`_meta.traceparent` per the meta-propagation RFD. As of this writing **no
-released Goose version** satisfies both over a network ACP hop, so no minimum
-"works from" version can yet be named. The per-role breakdown above is
-forward-compatible: the same *Trace composition* tile flips from `role_count == 1`
-to `role_count == 5` the moment those two land, with no dashboard change.
+> ⚠️ **Manifest note:** `k8s/goose/bmad/` was authored against v1.46.0 and must be
+> updated for v1.52.0 — image `ghcr.io/aaif-goose/goose:latest`, command
+> `goose serve --host 0.0.0.0 --port 4000` (not `goose acp`), plus
+> `GOOSE_SERVER__SECRET_KEY`. See `k8s/goose/bmad/`.

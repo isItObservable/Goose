@@ -25,9 +25,9 @@ spec:
     spec:
       containers:
         - name: goose
-          image: ghcr.io/block/goose:1.46.0
+          image: ghcr.io/aaif-goose/goose:latest
           command: ["goose"]
-          args: ["acp"]
+          args: ["serve", "--host", "0.0.0.0", "--port", "4000"]
           ports:
             - name: acp
               containerPort: 4000
@@ -38,6 +38,10 @@ spec:
               value: "http/protobuf"
             - name: OTEL_SERVICE_NAME
               value: "goose-planner"
+            - name: GOOSE_SERVER__SECRET_KEY
+              valueFrom:
+                secretKeyRef: { name: goose-secrets, key: GOOSE_SERVER_SECRET_KEY }
+
             - name: GOOSE_RECIPE
               value: "/recipes/bmad/planner.yaml"
             - name: GOOSE_PROVIDER

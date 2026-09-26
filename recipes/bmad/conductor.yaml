@@ -12,10 +12,12 @@
 # so nothing is hard-coded. Golden rule is preserved: READS run in parallel
 # (researcher, reviewer), WRITES run sequentially (planner → executor).
 #
-# ⭐ Trace continuity: the Conductor MUST forward the active `traceparent` on
-# every ACP dispatch so the whole crew run is ONE distributed trace across the
-# per-role service names (goose-conductor → goose-researcher → …). This is the
-# same crux the CrewAI episode hit; see README §7 and docs/observability.md.
+# ⭐ Trace continuity (NOT yet automatic): the Conductor SHOULD forward the
+# active `traceparent` on every ACP dispatch so the whole crew run is ONE
+# distributed trace across the per-role service names (goose-conductor →
+# goose-researcher → …). Verified on v1.52.0: goose registers the W3C propagator
+# but does NOT apply it to the ACP HTTP transport, so each role remains its own
+# trace today — see docs/observability.md Gotcha 4.
 
 version: "1.0.0"
 title: "BMAD crew — Conductor (ACP client)"
@@ -45,8 +47,10 @@ instructions: |
        criteria. Stop when the Reviewer approves or after two review rounds.
 
   On EVERY ACP dispatch, propagate the active W3C `traceparent` so the crew run
-  is a single distributed trace. Broadcast each role's output before starting
-  the next role.
+  is a single distributed trace. (Note: goose v1.52.0 does not do this
+  automatically yet — see Gotcha 4. When the ACP transport is wired to the OTel
+  propagator, this instruction becomes live.) Broadcast each role's output
+  before starting the next role.
 
 prompt: |
   Crew goal: {{ goal }}

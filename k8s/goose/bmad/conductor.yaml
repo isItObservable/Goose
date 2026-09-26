@@ -3,8 +3,9 @@
 # One agent per role so each ACP endpoint is addressable in-cluster. The
 # Conductor is the ACP *client*: it dispatches the other roles at their Service
 # DNS names (passed as ACP_*_URL). Each role sets its OWN OTEL_SERVICE_NAME so
-# the per-role spans are distinguishable; the Conductor forwards `traceparent`
-# on each dispatch so the whole run is one distributed trace.
+# the per-role spans are distinguishable. NOTE: goose v1.52.0 does not yet
+# forward `traceparent` across the ACP hop — each role is its own trace
+# (see docs/observability.md Gotcha 4).
 #
 # All OTLP still goes to the shared gateway collector on 4318 (HTTP only).
 apiVersion: apps/v1
@@ -30,12 +31,12 @@ spec:
     spec:
       containers:
         - name: goose
-          image: ghcr.io/block/goose:1.46.0
+          image: ghcr.io/aaif-goose/goose:latest
           # ACP client/agent mode. If the pinned version's ACP surface does not
           # yet expose a network listener, fall back to the in-process crew
           # (recipes/04-bmad-crew.yaml) — see README §7.
           command: ["goose"]
-          args: ["acp"]
+          args: ["serve", "--host", "0.0.0.0", "--port", "4000"]
           ports:
             - name: acp
               containerPort: 4000
@@ -47,6 +48,10 @@ spec:
               value: "http/protobuf"
             - name: OTEL_SERVICE_NAME
               value: "goose-conductor"
+            - name: GOOSE_SERVER__SECRET_KEY
+              valueFrom:
+                secretKeyRef: { name: goose-secrets, key: GOOSE_SERVER_SECRET_KEY }
+
             # --- Per-role ACP endpoints the Conductor dispatches to -------
             - name: ACP_RESEARCHER_URL
               value: "http://goose-researcher.goose.svc.cluster.local:4000"

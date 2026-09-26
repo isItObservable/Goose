@@ -25,11 +25,11 @@ spec:
     spec:
       containers:
         - name: goose
-          image: ghcr.io/block/goose:1.46.0
+          image: ghcr.io/aaif-goose/goose:latest
           command: ["goose"]
           # Serve this role's recipe over ACP. The exact ACP invocation depends
           # on the pinned Goose version; GOOSE_RECIPE pins the role either way.
-          args: ["acp"]
+          args: ["serve", "--host", "0.0.0.0", "--port", "4000"]
           ports:
             - name: acp
               containerPort: 4000
@@ -40,6 +40,10 @@ spec:
               value: "http/protobuf"
             - name: OTEL_SERVICE_NAME
               value: "goose-researcher"
+            - name: GOOSE_SERVER__SECRET_KEY
+              valueFrom:
+                secretKeyRef: { name: goose-secrets, key: GOOSE_SERVER_SECRET_KEY }
+
             - name: GOOSE_RECIPE
               value: "/recipes/bmad/researcher.yaml"
             - name: GOOSE_PROVIDER
