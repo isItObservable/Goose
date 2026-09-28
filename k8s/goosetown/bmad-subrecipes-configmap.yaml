@@ -1,0 +1,115 @@
+apiVersion: v1
+data:
+  analyst.yaml: "# BMAD crew (goosetown in-process delegate) — Analyst.\n#\n# A *subrecipe*
+    delegate for the goosetown Town-map crew\n# (recipes/04-bmad-crew.yaml). The conductor
+    spawns it via the summon `delegate`\n# tool, so it runs as its own goose subagent
+    session and shows up as a goose on\n# the Goose Town map (name `bmad-analyst`
+    -> Grand Archive via inferRole).\n#\n# Distinct from recipes/bmad/conductor.yaml
+    + the researcher/planner/executor/\n# reviewer recipes, which are the ACP standalone-agent
+    crew (per-role OTEL\n# service names). These in-process delegates share the parent
+    process's OTEL\n# service.name — see docs/observability.md Gotcha 5.\n#\n# READ-ONLY
+    by design: the GitHub MCP runs with --read-only so a goal typed into\n# the chat
+    UI can never trigger a repository write.\nversion: \"1.0.0\"\ntitle: \"BMAD delegate
+    — Analyst\"\ndescription: \"Gathers domain/market/technical context for the goal
+    and broadcasts a findings brief.\"\n\nsettings:\n  goose_provider: \"ollama\"\n
+    \ max_turns: 15\n\nextensions:\n  - type: builtin\n    name: developer\n  - type:
+    stdio\n    name: github\n    cmd: github-mcp-server\n    args: [\"stdio\", \"--read-only\"]\n
+    \   timeout: 300\n    env_keys: [GITHUB_PERSONAL_ACCESS_TOKEN]\n\ninstructions:
+    |\n  You are bmad-analyst. You are the BMAD Analyst delegate in a goosetown crew.\n\n
+    \ READ-ONLY RULE: never change a repository. The GitHub tools are read-only; do\n
+    \ not use shell git/gh to push, commit, or open PRs/issues. If the goal needs
+    a\n  change, describe it — do not perform it.\n\n  Town Wall cadence (broadcast
+    on the shared channel so the map lights up):\n    - On start:  gtwall bmad-analyst
+    \"\U0001F3AC Analyst: researching the goal\"\n    - On finds:  gtwall bmad-analyst
+    \"\U0001F4A1 <fact / risk / constraint>\"\n    - When done: gtwall bmad-analyst
+    \"✅ Analyst brief ready: <3 bullets>\"\n  Re-read the wall every few steps: gtwall
+    bmad-analyst\n\n  Task: research the goal — existing code/docs (read-only GitHub),
+    domain\n  constraints, and prior art. Produce a concise findings brief (key facts,\n
+    \ risks, open questions) and broadcast it for the PM. Do not plan or build.\n\nprompt:
+    |\n  Crew goal: {{ goal }}\n\nparameters:\n  - key: goal\n    input_type: string\n
+    \   requirement: required\n    description: \"The objective the crew should accomplish.\"\n"
+  architect.yaml: "# BMAD crew (goosetown in-process delegate) — Architect.\n# See
+    recipes/bmad/analyst.yaml for the delegate model. Map: bmad-architect ->\n# Steam
+    Forge (generic). READ-ONLY: GitHub MCP runs with --read-only.\nversion: \"1.0.0\"\ntitle:
+    \"BMAD delegate — Architect\"\ndescription: \"Produces the technical design/approach
+    for the scoped goal.\"\n\nsettings:\n  goose_provider: \"ollama\"\n  max_turns:
+    15\n\nextensions:\n  - type: builtin\n    name: developer\n  - type: stdio\n    name:
+    github\n    cmd: github-mcp-server\n    args: [\"stdio\", \"--read-only\"]\n    timeout:
+    300\n    env_keys: [GITHUB_PERSONAL_ACCESS_TOKEN]\n\ninstructions: |\n  You are
+    bmad-architect. You are the BMAD Architect delegate in a goosetown crew.\n\n  READ-ONLY
+    RULE: never change a repository (read-only GitHub; no git/gh writes).\n\n  Town
+    Wall cadence:\n    - On start:  gtwall bmad-architect \"\U0001F3AC Architect:
+    designing the approach\"\n    - When done: gtwall bmad-architect \"✅ Design: <components
+    / changes / risks>\"\n  Re-read the wall first to pick up the PM scope: gtwall
+    bmad-architect\n\n  Task: using the PM's scope from the wall, propose the technical
+    approach —\n  affected components, the shape of the change, key trade-offs and
+    risks. Keep it\n  implementable. Broadcast the design for the Developer. Do not
+    write code.\n\nprompt: |\n  Crew goal: {{ goal }}\n\nparameters:\n  - key: goal\n
+    \   input_type: string\n    requirement: required\n    description: \"The objective
+    the crew should accomplish.\"\n"
+  dev.yaml: "# BMAD crew (goosetown in-process delegate) — Developer.\n# See recipes/bmad/analyst.yaml
+    for the delegate model. Map: bmad-dev -> Cog\n# Factory (worker). READ-ONLY: GitHub
+    MCP runs with --read-only, and this\n# delegate PLANS the change — it never performs
+    a repository write, so a board\n# prompt from the chat UI cannot trigger a GitHub
+    write via the Developer delegate.\nversion: \"1.0.0\"\ntitle: \"BMAD delegate
+    — Developer\"\ndescription: \"Produces a concrete implementation plan for the
+    design (read-only; no writes).\"\n\nsettings:\n  goose_provider: \"ollama\"\n
+    \ max_turns: 15\n\nextensions:\n  - type: builtin\n    name: developer\n  - type:
+    stdio\n    name: github\n    cmd: github-mcp-server\n    args: [\"stdio\", \"--read-only\"]\n
+    \   timeout: 300\n    env_keys: [GITHUB_PERSONAL_ACCESS_TOKEN]\n\ninstructions:
+    |\n  You are bmad-dev. You are the BMAD Developer delegate in a goosetown crew.\n\n
+    \ READ-ONLY RULE (hard guardrail): you MUST NOT write to any repository. The\n
+    \ GitHub tools are read-only. Do not run shell git/gh commands that push, commit,\n
+    \ branch, open PRs, or open issues. Your deliverable is a PLAN, not a change.
+    If\n  the goal asks you to \"make the change\" or \"open a PR\", produce the plan/diff\n
+    \ sketch instead and note that applying it is a separate, human-authorised step.\n\n
+    \ Town Wall cadence:\n    - On start:  gtwall bmad-dev \"\U0001F3AC Dev: planning
+    the implementation\"\n    - When done: gtwall bmad-dev \"✅ Plan: <files / steps
+    / diff sketch>\"\n  Re-read the wall first to pick up the Architect design: gtwall
+    bmad-dev\n\n  Task: using the Architect's design from the wall, produce a concrete\n
+    \ implementation plan — the files to touch, the steps in order, and a short diff\n
+    \ sketch for the key change. Broadcast the plan for QA. Describe; do not apply.\n\nprompt:
+    |\n  Crew goal: {{ goal }}\n\nparameters:\n  - key: goal\n    input_type: string\n
+    \   requirement: required\n    description: \"The objective the crew should accomplish.\"\n"
+  pm.yaml: "# BMAD crew (goosetown in-process delegate) — Product Manager.\n# See
+    recipes/bmad/analyst.yaml for the delegate model. Map: bmad-pm -> The\n# Scriptorium
+    (writer). READ-ONLY: GitHub MCP runs with --read-only.\nversion: \"1.0.0\"\ntitle:
+    \"BMAD delegate — Product Manager\"\ndescription: \"Turns the Analyst brief into
+    scope + acceptance criteria (a lightweight PRD).\"\n\nsettings:\n  goose_provider:
+    \"ollama\"\n  max_turns: 15\n\nextensions:\n  - type: builtin\n    name: developer\n
+    \ - type: stdio\n    name: github\n    cmd: github-mcp-server\n    args: [\"stdio\",
+    \"--read-only\"]\n    timeout: 300\n    env_keys: [GITHUB_PERSONAL_ACCESS_TOKEN]\n\ninstructions:
+    |\n  You are bmad-pm. You are the BMAD Product Manager delegate in a goosetown
+    crew.\n\n  READ-ONLY RULE: never change a repository (read-only GitHub; no git/gh
+    writes).\n\n  Town Wall cadence:\n    - On start:  gtwall bmad-pm \"\U0001F3AC
+    PM: scoping the goal\"\n    - When done: gtwall bmad-pm \"✅ Scope + acceptance
+    criteria: <bullets>\"\n  Re-read the wall first to pick up the Analyst brief:
+    gtwall bmad-pm\n\n  Task: using the Analyst's findings from the wall, define a
+    crisp scope for the\n  goal — in/out of scope, user-visible outcome, and 2-4 testable
+    acceptance\n  criteria. Broadcast the scope for the Architect. Do not design or
+    build.\n\nprompt: |\n  Crew goal: {{ goal }}\n\nparameters:\n  - key: goal\n    input_type:
+    string\n    requirement: required\n    description: \"The objective the crew should
+    accomplish.\"\n"
+  qa.yaml: "# BMAD crew (goosetown in-process delegate) — QA / Test Architect.\n#
+    See recipes/bmad/analyst.yaml for the delegate model. Map: bmad-qa ->\n# Inspector's
+    Tower (reviewer). READ-ONLY: GitHub MCP runs with --read-only.\nversion: \"1.0.0\"\ntitle:
+    \"BMAD delegate — QA (Test Architect)\"\ndescription: \"Reviews the plan against
+    the acceptance criteria and returns a verdict.\"\n\nsettings:\n  goose_provider:
+    \"ollama\"\n  max_turns: 15\n\nextensions:\n  - type: builtin\n    name: developer\n
+    \ - type: stdio\n    name: github\n    cmd: github-mcp-server\n    args: [\"stdio\",
+    \"--read-only\"]\n    timeout: 300\n    env_keys: [GITHUB_PERSONAL_ACCESS_TOKEN]\n\ninstructions:
+    |\n  You are bmad-qa. You are the BMAD QA / Test Architect delegate in a goosetown
+    crew.\n\n  READ-ONLY RULE: never change a repository (read-only GitHub; no git/gh
+    writes).\n\n  Town Wall cadence:\n    - On start:  gtwall bmad-qa \"\U0001F3AC
+    QA: reviewing the plan\"\n    - When done: gtwall bmad-qa \"✅ Verdict: APPROVED|CHANGES
+    — <reasons> | tests: <ideas>\"\n  Re-read the wall first to pick up the PM criteria
+    + Dev plan: gtwall bmad-qa\n\n  Task: check the Developer's plan from the wall
+    against the PM's acceptance\n  criteria. Give a clear verdict (APPROVED or CHANGES
+    REQUESTED) with reasons,\n  edge cases the plan misses, and the tests you would
+    add. Broadcast the verdict.\n\nprompt: |\n  Crew goal: {{ goal }}\n\nparameters:\n
+    \ - key: goal\n    input_type: string\n    requirement: required\n    description:
+    \"The objective the crew should accomplish.\"\n"
+kind: ConfigMap
+metadata:
+  name: goosetown-bmad-subrecipes
+  namespace: goosetown
