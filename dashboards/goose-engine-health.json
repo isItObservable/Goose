@@ -1,0 +1,61 @@
+{
+  "version": 18,
+  "dashboardMetadata": {
+    "name": "Goose — Engine Health"
+  },
+  "variables": [
+    {
+      "key": "service",
+      "type": "query",
+      "visible": true,
+      "input": "fetch spans | filter isNotNull(service.name) | fields service.name | dedup service.name",
+      "multiple": false,
+      "defaultValue": "goose"
+    }
+  ],
+  "tiles": {
+    "0": {
+      "type": "markdown",
+      "title": "",
+      "content": "# Goose — Engine Health\nToken usage, session duration, tool-call throughput and session completions.\n\n> Goose emits cumulative sums and **no histograms** — there is no p95 latency direct from these metrics. `session_tokens` is the context size of the final call, not total tokens consumed."
+    },
+    "1": {
+      "type": "data",
+      "title": "Session tokens (context size of final call)",
+      "query": "timeseries tokens = avg(goose.session_tokens), by:{ service.name }",
+      "visualization": "lineChart"
+    },
+    "2": {
+      "type": "data",
+      "title": "Session duration (ms)",
+      "query": "timeseries dur = avg(goose.session_duration_ms), by:{ service.name }",
+      "visualization": "lineChart"
+    },
+    "3": {
+      "type": "data",
+      "title": "Tool calls vs completions",
+      "query": "timeseries { calls = sum(goose.tool_calls), completions = sum(goose.tool_completions) }",
+      "visualization": "lineChart"
+    },
+    "4": {
+      "type": "data",
+      "title": "Tool completion rate",
+      "query": "timeseries { calls = sum(goose.tool_calls), completions = sum(goose.tool_completions) } | fieldsAdd rate = 100 * completions[] / calls[]",
+      "visualization": "singleValue"
+    },
+    "5": {
+      "type": "data",
+      "title": "Sessions completed",
+      "query": "timeseries sessions = sum(goose.session_completions)",
+      "visualization": "singleValue"
+    }
+  },
+  "layouts": {
+    "0": { "x": 0, "y": 0, "w": 24, "h": 3 },
+    "1": { "x": 0, "y": 3, "w": 12, "h": 6 },
+    "2": { "x": 12, "y": 3, "w": 12, "h": 6 },
+    "3": { "x": 0, "y": 9, "w": 12, "h": 6 },
+    "4": { "x": 12, "y": 9, "w": 6, "h": 6 },
+    "5": { "x": 18, "y": 9, "w": 6, "h": 6 }
+  }
+}

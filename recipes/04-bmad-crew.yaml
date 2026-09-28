@@ -1,0 +1,46 @@
+# Recipe 04 — the goosetown BMAD-style crew entrypoint.
+#
+# Orchestrates a multi-agent crew: a Conductor coordinates specialised Delegate
+# "flocks" through research → plan → execute → review, all talking over a shared
+# broadcast channel (the "Town Wall"). This is our BMAD-crew analog.
+#
+#   goose run --recipe recipes/04-bmad-crew.yaml --params goal="Add a health endpoint to the sample service"
+#
+# The crew wiring lives in config/goosetown/ (conductor.yaml + flocks/).
+#
+# The GitHub MCP extension is declared (the crew can act on the repo); the
+# Dynatrace MCP is intentionally omitted — its DT_ENVIRONMENT_URL lives in the
+# collector, not the agent pod.
+
+version: "1.0.0"
+title: "goosetown BMAD crew"
+description: "A conductor-led, multi-agent crew (research/plan/execute/review) over a shared channel."
+
+settings:
+  goose_provider: "ollama"
+
+extensions:
+  - type: stdio
+    name: github
+    cmd: github-mcp-server
+    args: ["stdio"]
+    timeout: 300
+    env_keys: [GITHUB_PERSONAL_ACCESS_TOKEN]
+
+instructions: |
+  You are the Conductor of a goosetown BMAD crew. Given a goal, coordinate the
+  five BMAD Delegate flocks in sequence — Analyst, Product Manager (PM),
+  Architect, Developer, QA (Test Architect) — as defined in config/goosetown/
+  (analyze → plan/design → implement → review). Rule of thumb: READS run in
+  parallel, WRITES run sequentially. Broadcast each flock's output on the shared
+  channel before the next flock starts. Stop and summarise when QA approves or
+  after two review rounds.
+
+prompt: |
+  Crew goal: {{ goal }}
+
+parameters:
+  - key: goal
+    input_type: string
+    requirement: required
+    description: "The objective the crew should accomplish."

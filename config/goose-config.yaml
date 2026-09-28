@@ -1,0 +1,39 @@
+# Goose configuration template.
+#
+# In-cluster this is mounted at ~/.config/goose/config.yaml (see
+# k8s/goose/configmap.yaml). Locally, copy it there to run recipes from your
+# workstation. Values in ${...} are read from the environment (.env).
+#
+# Docs: https://block.github.io/goose/docs/guides/config-file
+
+# --- LLM provider -----------------------------------------------------------
+# Ollama keeps inference local. Point GOOSE_PROVIDER__HOST at your Ollama host.
+GOOSE_PROVIDER: ollama
+GOOSE_MODEL: ${OLLAMA_MODEL}
+
+# Ollama connection. OLLAMA_HOST is honoured by the Ollama provider; we also set
+# the base URL explicitly for clarity.
+OLLAMA_HOST: ${OLLAMA_BASE_URL}
+
+# --- Extensions (MCP servers) ----------------------------------------------
+# Extensions can also be declared per-recipe (see recipes/). Declaring them here
+# makes them available to every session. Enable the ones you need.
+extensions:
+  dynatrace:
+    type: stdio
+    enabled: false            # flip to true after `make wire-mcp`
+    cmd: npx
+    args: ["-y", "@dynatrace-oss/dynatrace-mcp-server"]
+    env_keys: [DT_ENVIRONMENT_URL, DT_MCP_TOKEN]
+    timeout: 300
+  github:
+    type: stdio
+    enabled: false            # flip to true after `make wire-mcp`
+    cmd: docker
+    args: ["run", "-i", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "ghcr.io/github/github-mcp-server"]
+    env_keys: [GITHUB_PERSONAL_ACCESS_TOKEN]
+    timeout: 300
+
+# --- Telemetry --------------------------------------------------------------
+# Native OpenTelemetry is controlled by the OTEL_* env vars on the deployment,
+# NOT by anything here. See docs/observability.md, Gotcha 2.

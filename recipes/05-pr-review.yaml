@@ -1,0 +1,69 @@
+# Recipe 05 — automated pull-request review via the GitHub MCP.
+#
+# A two-phase agent: it READS a pull request (metadata, changed files, diff)
+# through the GitHub MCP server, forms a structured review, and then POSTS that
+# review back to the PR — in a single posting action, nothing else.
+#
+#   goose run --recipe recipes/05-pr-review.yaml \
+#     --params repo="owner/name"            # reviews the latest open PR
+#
+#   goose run --recipe recipes/05-pr-review.yaml \
+#     --params repo="owner/name" pr="42"    # reviews PR #42
+#
+# Requires GITHUB_TOKEN in your environment (.env), scoped to the demo repo with
+# pull-request read + write (to post the review). See .env.example.
+
+version: "1.0.0"
+title: "Goose PR reviewer"
+description: "Reads a pull request via the GitHub MCP, writes a structured review, and posts it back to the PR."
+
+settings:
+  goose_provider: "ollama"
+
+extensions:
+  - type: stdio
+    name: github
+    # GitHub's official MCP server, run as a native binary (no docker-in-docker).
+    cmd: github-mcp-server
+    args: ["stdio"]
+    timeout: 300
+    env_keys:
+      - GITHUB_PERSONAL_ACCESS_TOKEN
+
+instructions: |
+  You are a careful pull-request reviewer. Work in two phases and do not skip
+  ahead.
+
+  PHASE 1 — READ. Using the GitHub MCP tools, resolve the target pull request:
+  if a PR number is given, use exactly that one; otherwise list open PRs and
+  pick the most recently updated open PR. Read its metadata (title, author,
+  branch, state), the list of changed files, and the diff. Then produce a
+  structured review with three parts:
+    • Summary   — 2-3 sentences on what the PR does and its overall quality.
+    • Per-file  — a short note per changed file (concern, risk, or "looks good").
+    • Verdict   — exactly one of APPROVE, REQUEST_CHANGES, or COMMENT.
+
+  PHASE 2 — POST. Post the review to that same PR using the GitHub MCP
+  "create pull request review" tool, mapping your verdict to its event
+  (APPROVE / REQUEST_CHANGES / COMMENT). Do this once.
+
+  GUARDRAILS (do not violate):
+    • Review ONLY the named pull request's diff — no other branch, PR, or repo.
+    • NEVER push commits, edit files, merge, or close anything.
+    • Exactly ONE posting action — the single review. No extra comments.
+    • Never echo secrets or tokens. Keep notes factual and specific.
+
+prompt: |
+  Repository: {{ repo }}
+  Pull request: {{ pr }}   # empty means: review the latest open PR
+
+parameters:
+  - key: repo
+    input_type: string
+    requirement: required
+    description: "The GitHub repository, as owner/name."
+  - key: pr
+    input_type: string
+    requirement: optional
+    default: ""
+    description: "The pull-request number to review. Leave empty to review the latest open PR."

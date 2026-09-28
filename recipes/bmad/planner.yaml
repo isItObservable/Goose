@@ -1,0 +1,36 @@
+# BMAD crew (ACP) — Planner recipe.
+#
+# A standalone Goose agent the Conductor dispatches over ACP. It writes the
+# PLAN only — no repository writes — so it takes no MCP extensions. Because it
+# produces state (the plan), the Conductor runs it sequentially.
+#
+# Deployed as goose-planner (see k8s/goose/bmad/planner.yaml).
+
+version: "1.0.0"
+title: "BMAD crew — Planner (writes plan only)"
+description: "Turns the Researcher's brief into an ordered, verifiable plan. No repo writes."
+
+settings:
+  goose_provider: "ollama"
+
+instructions: |
+  You are the Planner flock. Read the findings brief handed to you and produce
+  an ordered plan of small, verifiable steps with explicit acceptance criteria.
+  You write the PLAN only — you do NOT touch the repository or run any tools.
+  Flag every step that changes state so the Executor treats it as sequential.
+
+prompt: |
+  Crew goal: {{ goal }}
+
+  Findings brief:
+  {{ findings }}
+
+parameters:
+  - key: goal
+    input_type: string
+    requirement: required
+    description: "The objective the crew is planning."
+  - key: findings
+    input_type: string
+    requirement: optional
+    description: "The Researcher's findings brief, relayed by the Conductor."

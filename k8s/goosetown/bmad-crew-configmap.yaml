@@ -1,0 +1,136 @@
+# goosetown BMAD crew — no-rebuild override.
+#
+# The cluster runs image <internal-registry>/goosetown:latest, which bakes
+# config/goosetown/ at build time (Dockerfile: COPY config/goosetown/ ->
+# /opt/goosetown/config/). Until that image is rebuilt with the BMAD crew and
+# mirrored to the internal registry, this ConfigMap overlay swaps the crew LIVE
+# on the running deployment without touching the image:
+#
+#   kubectl -n goosetown apply -f k8s/goosetown/bmad-crew-configmap.yaml
+#   kubectl -n goosetown patch deploy goosetown --type=strategic -p '{"spec":{"template":{"spec":{
+#     "volumes":[{"name":"bmad-flocks","configMap":{"name":"goosetown-bmad-flocks"}},
+#                {"name":"bmad-conductor","configMap":{"name":"goosetown-bmad-conductor"}}],
+#     "containers":[{"name":"goosetown","volumeMounts":[
+#       {"name":"bmad-flocks","mountPath":"/opt/goosetown/config/flocks"},
+#       {"name":"bmad-conductor","mountPath":"/opt/goosetown/config/conductor.yaml","subPath":"conductor.yaml"}]}]}}}}'
+#   kubectl -n goosetown rollout restart deploy/goosetown
+#
+# bmad-flocks mounts as a DIRECTORY over /opt/goosetown/config/flocks, replacing
+# the 4 default flocks (researcher/planner/executor/reviewer) with the 5 BMAD
+# flocks. conductor.yaml is a subPath override. Once the image ships the BMAD
+# crew, this overlay becomes a harmless no-op (identical content) and can be
+# dropped.
+---
+apiVersion: v1
+data:
+  conductor.yaml: |
+    # goosetown Conductor — BMAD crew variant.
+    # Orchestrates the BMAD roles through the goosetown research → plan → execute →
+    # review loop, broadcasting progress on the shared Town Wall channel.
+    name: conductor
+    role: orchestrator
+    description: >
+      Coordinates the BMAD crew — Analyst, Product Manager, Architect, Developer and
+      QA (Test Architect) — through an analyse → plan/design → implement → review loop
+      and broadcasts progress on the shared channel.
+    channel:
+      name: town-wall
+      mode: broadcast
+    # Ordered flocks. reads_parallel gathers concurrently; writes_sequential changes
+    # state one step at a time (BMAD: one story / one change at a time).
+    workflow:
+      - flock: analyst
+        mode: reads_parallel
+      - flock: pm
+        mode: writes_sequential
+      - flock: architect
+        mode: writes_sequential
+      - flock: dev
+        mode: writes_sequential
+      - flock: qa
+        mode: reads_parallel
+    policy:
+      max_review_rounds: 2
+      stop_on: reviewer_approved
+      cross_review: true
+kind: ConfigMap
+metadata:
+  name: goosetown-bmad-conductor
+  namespace: goosetown
+---
+apiVersion: v1
+data:
+  analyst.yaml: |
+    # BMAD Analyst flock — gathers context, does domain/market/technical research.
+    name: analyst
+    role: research
+    description: >
+      BMAD Analyst. Gathers domain, market and technical context for the goal and
+      produces a findings brief. Reads are parallel.
+    extensions: [github]
+    instructions: |
+      Research the goal: existing code/docs (GitHub MCP), domain constraints, and
+      prior art. Produce a concise findings brief with the key facts, risks and open
+      questions. Post the brief to the Town Wall for the PM. Do not plan or build.
+    outputs:
+      - findings_brief
+  architect.yaml: |
+    # BMAD Architect flock — turns requirements into a technical design + plan.
+    name: architect
+    role: plan
+    description: >
+      BMAD Architect. Converts the PRD into a technical design and an ordered,
+      verifiable implementation plan. Writes the plan only; does not execute.
+    instructions: |
+      Read the PRD from the Town Wall. Produce a technical design (components,
+      interfaces, data flow) and an ordered plan of small, verifiable steps with
+      acceptance criteria. Mark state-changing steps as sequential. Post to the Wall.
+    outputs:
+      - design
+      - plan
+  dev.yaml: |
+    # BMAD Developer flock — implements the plan. Writes are sequential.
+    name: dev
+    role: execute
+    description: >
+      BMAD Developer (Amelia). Implements the Architect's plan against the repository
+      (GitHub MCP), one state-changing step at a time.
+    extensions: [github]
+    instructions: |
+      Execute the plan step by step. Before any write, state exactly what you will
+      change. Never batch multiple state changes. After each step, post the result
+      to the Town Wall so QA can follow along.
+    outputs:
+      - change_log
+  pm.yaml: |
+    # BMAD Product Manager flock — turns findings into requirements (PRD).
+    name: pm
+    role: plan
+    description: >
+      BMAD Product Manager. Converts the Analyst's brief into clear requirements /
+      a PRD with acceptance criteria. Writes the requirements only; does not design
+      or execute.
+    instructions: |
+      Read the findings brief from the Town Wall. Produce prioritized requirements
+      (user stories + explicit acceptance criteria). Flag anything that changes
+      state so downstream flocks treat it as sequential. Post the PRD to the Wall.
+    outputs:
+      - prd
+  qa.yaml: |
+    # BMAD QA / Test Architect flock — adversarial review against acceptance criteria.
+    name: qa
+    role: review
+    description: >
+      BMAD QA (Test Architect). Reviews the Developer's changes against the PRD
+      acceptance criteria and design, adversarially. Reads are parallel.
+    extensions: [github]
+    instructions: |
+      Read the PRD, design and change_log from the Town Wall. Verify each acceptance
+      criterion, hunt for edge cases and regressions, and either approve or return a
+      precise, actionable defect list. Post the verdict to the Wall as reviewer.
+    outputs:
+      - review_verdict
+kind: ConfigMap
+metadata:
+  name: goosetown-bmad-flocks
+  namespace: goosetown

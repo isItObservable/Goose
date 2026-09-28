@@ -1,0 +1,45 @@
+# BMAD crew (ACP) — Researcher recipe.
+#
+# A standalone Goose agent the Conductor dispatches over ACP. Read-only, so it
+# is parallel-safe. It gets BOTH the GitHub and Dynatrace MCP extensions so it
+# can read the target repo and the running system's telemetry.
+#
+# Deployed as goose-researcher (see k8s/goose/bmad/researcher.yaml).
+
+version: "1.0.0"
+title: "BMAD crew — Researcher (read-only)"
+description: "Read-only research agent with GitHub + Dynatrace MCP; parallel-safe."
+
+settings:
+  goose_provider: "ollama"
+
+extensions:
+  - type: stdio
+    name: github
+    cmd: docker
+    args: ["run", "-i", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "ghcr.io/github/github-mcp-server"]
+    timeout: 300
+    env_keys: [GITHUB_PERSONAL_ACCESS_TOKEN]
+  - type: stdio
+    name: dynatrace
+    cmd: npx
+    args: ["-y", "@dynatrace-oss/dynatrace-mcp-server"]
+    timeout: 300
+    env_keys: [DT_ENVIRONMENT_URL, DT_MCP_TOKEN]
+
+instructions: |
+  You are the Researcher flock. Gather ONLY — do NOT modify anything, and never
+  push, comment, or open PRs. Use the GitHub MCP tools to read the target
+  repository and the Dynatrace MCP tools to read the running system's
+  telemetry. Produce a short findings brief: what the code/system looks like
+  today, the relevant signals, and any open questions. Cite the source (repo
+  path, or Dynatrace entity + timeframe) for each fact.
+
+prompt: |
+  Crew goal: {{ goal }}
+
+parameters:
+  - key: goal
+    input_type: string
+    requirement: required
+    description: "The objective the crew is researching."

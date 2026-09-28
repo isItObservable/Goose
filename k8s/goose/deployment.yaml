@@ -1,0 +1,92 @@
+# Goose deployment.
+#
+# Two run modes are documented below; the manifest ships the long-lived
+# server/agent mode so telemetry is continuous. For batch/scheduled runs, swap
+# the command for the headless recipe form (commented) or use a Job.
+#
+# The OTEL_* env block is what turns on native OpenTelemetry (see
+# docs/observability.md). It points at the gateway collector on 4318.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: goose
+  namespace: goose
+  labels:
+    app.kubernetes.io/name: goose
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: goose
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: goose
+    spec:
+      containers:
+        - name: goose
+          # Pin note: ghcr.io/block/goose:1.46.0 does NOT exist (404). The image
+          # moved to aaif-goose; the last version tag is 1.37 (which panics on
+          # OTLP export — goose#9494). `latest` resolves to v1.52.0, where native
+          # OTel export is verified working (traces + metrics, HTTP/4318).
+          image: ghcr.io/aaif-goose/goose:latest
+          # --- Run mode -----------------------------------------------------
+          # Server/agent mode (long-lived) — default. `goose agent` does not
+          # exist; `goose serve` is the ACP server over HTTP/WebSocket.
+          command: ["goose"]
+          args: ["serve", "--host", "0.0.0.0"]
+          # Headless recipe mode (batch) — use a Job instead, e.g.:
+          #   args: ["run", "--recipe", "/recipes/01-simple-agent.yaml",
+          #          "--params", "topic=OpenTelemetry"]
+          env:
+            # --- Native OpenTelemetry (the whole point) -------------------
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-gateway-collector.observability.svc.cluster.local:4318"
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: "http/protobuf"
+            - name: OTEL_SERVICE_NAME
+              value: "goose"
+            # --- ACP server auth (required by `goose serve` in v1.52+) ----
+            - name: GOOSE_SERVER__SECRET_KEY
+              valueFrom:
+                secretKeyRef: { name: goose-secrets, key: GOOSE_SERVER_SECRET_KEY }
+            # --- LLM provider (Ollama) -----------------------------------
+            - name: GOOSE_PROVIDER
+              value: "ollama"
+            - name: OLLAMA_HOST
+              valueFrom:
+                secretKeyRef: { name: goose-secrets, key: OLLAMA_BASE_URL }
+            - name: GOOSE_MODEL
+              valueFrom:
+                secretKeyRef: { name: goose-secrets, key: OLLAMA_MODEL }
+          volumeMounts:
+            - name: goose-config
+              mountPath: /home/goose/.config/goose
+            # Mount each recipe via subPath (not a directory) — goose v1.52.0
+            # canonicalizes recipe paths and hits ELOOP on the ConfigMap
+            # `..data` symlink indirection.
+            - name: recipes
+              mountPath: /recipes/01-simple-agent.yaml
+              subPath: 01-simple-agent.yaml
+            - name: recipes
+              mountPath: /recipes/02-dynatrace-mcp.yaml
+              subPath: 02-dynatrace-mcp.yaml
+            - name: recipes
+              mountPath: /recipes/03-github-mcp.yaml
+              subPath: 03-github-mcp.yaml
+            - name: recipes
+              mountPath: /recipes/04-bmad-crew.yaml
+              subPath: 04-bmad-crew.yaml
+            - name: recipes
+              mountPath: /recipes/05-pr-review.yaml
+              subPath: 05-pr-review.yaml
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { cpu: "2", memory: 2Gi }
+      volumes:
+        - name: goose-config
+          configMap:
+            name: goose-config
+        - name: recipes
+          configMap:
+            name: goose-recipes

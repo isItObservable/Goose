@@ -1,0 +1,20 @@
+# Goosetown service — LoadBalancer exposing both the dashboard (4242) and the
+# web chat UI (4250). Chat is reachable at http://<LB-IP>:4251.
+apiVersion: v1
+kind: Service
+metadata:
+  name: goosetown-ui
+  namespace: goosetown
+  labels:
+    app.kubernetes.io/name: goosetown
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: goosetown
+  ports:
+    - name: http
+      port: 80
+      targetPort: 4242
+    - name: chat
+      port: 4251
+      targetPort: 4250

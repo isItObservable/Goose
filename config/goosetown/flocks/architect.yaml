@@ -1,0 +1,13 @@
+# BMAD Architect flock — turns requirements into a technical design + plan.
+name: architect
+role: plan
+description: >
+  BMAD Architect. Converts the PRD into a technical design and an ordered,
+  verifiable implementation plan. Writes the plan only; does not execute.
+instructions: |
+  Read the PRD from the Town Wall. Produce a technical design (components,
+  interfaces, data flow) and an ordered plan of small, verifiable steps with
+  acceptance criteria. Mark state-changing steps as sequential. Post to the Wall.
+outputs:
+  - design
+  - plan

@@ -1,0 +1,135 @@
+# Goosetown deployment — orchestration + dashboard UI + web chat UI.
+#
+# Two containers:
+#   - goosetown  : real-time "geese on a map" dashboard (goosetown-ui, :4242)
+#   - goose-chat : web chat UI to prompt the agent (chat-ui, :4250)
+#
+# Both share the wall + sessions via an emptyDir so the dashboard can show the
+# chat session's activity. OTel goes to the shared collector.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: goosetown
+  namespace: goosetown
+  labels:
+    app.kubernetes.io/name: goosetown
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: goosetown
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: goosetown
+    spec:
+      initContainers:
+        # The emptyDir starts empty and hides the image's pre-created wall.log,
+        # so recreate it here so the dashboard resolves the wall at startup.
+        - name: init-goose-state
+          image: 10.0.0.13/k8squad/goosetown:latest
+          command: ["sh", "-c", "mkdir -p /home/goose/.goosetown/walls /home/goose/.local/share/goose && touch /home/goose/.goosetown/walls/wall.log"]
+          volumeMounts:
+            - name: goose-state
+              mountPath: /home/goose/.goosetown
+            - name: goose-state
+              mountPath: /home/goose/.local/share/goose
+      containers:
+        - name: goosetown
+          image: 10.0.0.13/k8squad/goosetown:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 4242
+              name: http
+          env:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-gateway-collector.observability.svc.cluster.local:4318"
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: "http/protobuf"
+            - name: OTEL_SERVICE_NAME
+              value: "goose-goosetown"
+            - name: GOOSE_PROVIDER
+              value: "ollama"
+            - name: GOOSE_MODEL
+              valueFrom:
+                secretKeyRef: { name: goose-secrets, key: OLLAMA_MODEL }
+            - name: OLLAMA_HOST
+              valueFrom:
+                secretKeyRef: { name: goose-secrets, key: OLLAMA_BASE_URL }
+            - name: GITHUB_PERSONAL_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef: { name: goose-secrets, key: GITHUB_TOKEN }
+            - name: GOOSETOWN_BIND_HOST
+              value: "0.0.0.0"
+          volumeMounts:
+            - name: recipes
+              mountPath: /recipes/01-simple-agent.yaml
+              subPath: 01-simple-agent.yaml
+            - name: recipes
+              mountPath: /recipes/02-dynatrace-mcp.yaml
+              subPath: 02-dynatrace-mcp.yaml
+            - name: recipes
+              mountPath: /recipes/03-github-mcp.yaml
+              subPath: 03-github-mcp.yaml
+            - name: recipes
+              mountPath: /recipes/04-bmad-crew.yaml
+              subPath: 04-bmad-crew.yaml
+            - name: recipes
+              mountPath: /recipes/05-pr-review.yaml
+              subPath: 05-pr-review.yaml
+            - name: goose-state
+              mountPath: /home/goose/.goosetown
+            - name: goose-state
+              mountPath: /home/goose/.local/share/goose
+          readinessProbe:
+            httpGet: { path: "/", port: 4242 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { cpu: "2", memory: 2Gi }
+
+        - name: goose-chat
+          image: 10.0.0.13/k8squad/goosetown:latest
+          imagePullPolicy: Always
+          command: ["python3", "/opt/chat-ui/chat_server.py", "--host", "0.0.0.0", "--port", "4250"]
+          ports:
+            - containerPort: 4250
+              name: chat
+          env:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-gateway-collector.observability.svc.cluster.local:4318"
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: "http/protobuf"
+            - name: OTEL_SERVICE_NAME
+              value: "goose-goosetown"
+            - name: GOOSE_PROVIDER
+              value: "ollama"
+            - name: GOOSE_MODEL
+              valueFrom:
+                secretKeyRef: { name: goose-secrets, key: OLLAMA_MODEL }
+            - name: OLLAMA_HOST
+              valueFrom:
+                secretKeyRef: { name: goose-secrets, key: OLLAMA_BASE_URL }
+            - name: GITHUB_PERSONAL_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef: { name: goose-secrets, key: GITHUB_TOKEN }
+          volumeMounts:
+            - name: goose-state
+              mountPath: /home/goose/.goosetown
+            - name: goose-state
+              mountPath: /home/goose/.local/share/goose
+          readinessProbe:
+            httpGet: { path: "/", port: 4250 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { cpu: "2", memory: 2Gi }
+
+      volumes:
+        - name: recipes
+          configMap:
+            name: goosetown-recipes
+        - name: goose-state
+          emptyDir: {}

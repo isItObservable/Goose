@@ -1,0 +1,36 @@
+# Goose config + recipes, mounted into the pod.
+#
+# These ConfigMaps are generated from the repo files by scripts/03-deploy-goose.sh:
+#
+#   kubectl -n goose create configmap goose-config \
+#     --from-file=config.yaml=config/goose-config.yaml --dry-run=client -o yaml | kubectl apply -f -
+#   kubectl -n goose create configmap goose-recipes \
+#     --from-file=recipes/ --dry-run=client -o yaml | kubectl apply -f -
+#
+# This file is a checked-in reference of the expected shape. Prefer the script,
+# which keeps the ConfigMaps in sync with the repo. `config.yaml` here is a
+# minimal in-cluster form; the authoritative template is config/goose-config.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: goose-config
+  namespace: goose
+data:
+  config.yaml: |
+    GOOSE_PROVIDER: ollama
+    # OLLAMA_HOST / GOOSE_MODEL are supplied via env from the goose-secrets Secret.
+    extensions:
+      dynatrace:
+        type: stdio
+        enabled: false
+        cmd: npx
+        args: ["-y", "@dynatrace-oss/dynatrace-mcp-server"]
+        env_keys: [DT_ENVIRONMENT_URL, DT_MCP_TOKEN]
+        timeout: 300
+      github:
+        type: stdio
+        enabled: false
+        cmd: docker
+        args: ["run", "-i", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "ghcr.io/github/github-mcp-server"]
+        env_keys: [GITHUB_PERSONAL_ACCESS_TOKEN]
+        timeout: 300

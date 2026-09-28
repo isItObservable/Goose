@@ -1,0 +1,44 @@
+# BMAD crew (ACP) — Executor recipe.
+#
+# A standalone Goose agent the Conductor dispatches over ACP. It WRITES to the
+# repository via the GitHub MCP, so it runs sequentially — one state-changing
+# step at a time, never overlapping another write.
+#
+# Deployed as goose-executor (see k8s/goose/bmad/executor.yaml).
+
+version: "1.0.0"
+title: "BMAD crew — Executor (writes, sequential)"
+description: "Applies the plan to the repository via GitHub MCP, one step at a time."
+
+settings:
+  goose_provider: "ollama"
+
+extensions:
+  - type: stdio
+    name: github
+    cmd: docker
+    args: ["run", "-i", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "ghcr.io/github/github-mcp-server"]
+    timeout: 300
+    env_keys: [GITHUB_PERSONAL_ACCESS_TOKEN]
+
+instructions: |
+  You are the Executor flock. Execute the plan step by step against the
+  repository using the GitHub MCP tools. Before any write, state exactly what
+  you will change. Make ONE state change at a time — never batch multiple
+  writes. After each step, report the result so the Reviewer can follow along.
+
+prompt: |
+  Crew goal: {{ goal }}
+
+  Plan to execute:
+  {{ plan }}
+
+parameters:
+  - key: goal
+    input_type: string
+    requirement: required
+    description: "The objective the crew is executing."
+  - key: plan
+    input_type: string
+    requirement: optional
+    description: "The Planner's ordered plan, relayed by the Conductor."

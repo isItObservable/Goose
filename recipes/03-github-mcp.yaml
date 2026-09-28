@@ -1,0 +1,46 @@
+# Recipe 03 — agent + GitHub MCP extension.
+#
+# Adds the GitHub MCP server so the agent can read issues/PRs and act on a repo.
+#
+#   goose run --recipe recipes/03-github-mcp.yaml \
+#     --params repo="owner/name" task="Summarise the last 5 open issues"
+#
+# Requires GITHUB_TOKEN in your environment (.env). Scope it to the demo repo.
+
+version: "1.0.0"
+title: "Goose + GitHub MCP"
+description: "An agent that can read and act on a GitHub repository via the GitHub MCP server."
+
+settings:
+  goose_provider: "ollama"
+
+extensions:
+  - type: stdio
+    name: github
+    # GitHub's official MCP server, run as a native binary (no docker-in-docker).
+    # The binary is baked into the goosetown image; the hosted/remote MCP endpoint
+    # also works — see https://github.com/github/github-mcp-server.
+    cmd: github-mcp-server
+    args: ["stdio"]
+    timeout: 300
+    env_keys:
+      - GITHUB_PERSONAL_ACCESS_TOKEN
+
+instructions: |
+  You are a repository assistant. Use the GitHub MCP tools to inspect the given
+  repository and perform the requested task. Never push changes or comment
+  without stating exactly what you will do first. Keep summaries factual.
+
+prompt: |
+  Repository: {{ repo }}
+  Task: {{ task }}
+
+parameters:
+  - key: repo
+    input_type: string
+    requirement: required
+    description: "The GitHub repository, as owner/name."
+  - key: task
+    input_type: string
+    requirement: required
+    description: "What the agent should do with the repository."
