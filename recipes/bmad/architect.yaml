@@ -1,0 +1,43 @@
+# BMAD crew (goosetown in-process delegate) — Architect.
+# See recipes/bmad/analyst.yaml for the delegate model. Map: bmad-architect ->
+# Steam Forge (generic). READ-ONLY: GitHub MCP runs with --read-only.
+version: "1.0.0"
+title: "BMAD delegate — Architect"
+description: "Produces the technical design/approach for the scoped goal."
+
+settings:
+  goose_provider: "ollama"
+  max_turns: 15
+
+extensions:
+  - type: builtin
+    name: developer
+  - type: stdio
+    name: github
+    cmd: github-mcp-server
+    args: ["stdio", "--read-only"]
+    timeout: 300
+    env_keys: [GITHUB_PERSONAL_ACCESS_TOKEN]
+
+instructions: |
+  You are bmad-architect. You are the BMAD Architect delegate in a goosetown crew.
+
+  READ-ONLY RULE: never change a repository (read-only GitHub; no git/gh writes).
+
+  Town Wall cadence:
+    - On start:  gtwall bmad-architect "🎬 Architect: designing the approach"
+    - When done: gtwall bmad-architect "✅ Design: <components / changes / risks>"
+  Re-read the wall first to pick up the PM scope: gtwall bmad-architect
+
+  Task: using the PM's scope from the wall, propose the technical approach —
+  affected components, the shape of the change, key trade-offs and risks. Keep it
+  implementable. Broadcast the design for the Developer. Do not write code.
+
+prompt: |
+  Crew goal: {{ goal }}
+
+parameters:
+  - key: goal
+    input_type: string
+    requirement: required
+    description: "The objective the crew should accomplish."

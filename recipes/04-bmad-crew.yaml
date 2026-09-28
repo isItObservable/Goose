@@ -1,40 +1,77 @@
-# Recipe 04 — the goosetown BMAD-style crew entrypoint.
+# Recipe 04 — the goosetown BMAD crew entrypoint (Town-map crew).
 #
-# Orchestrates a multi-agent crew: a Conductor coordinates specialised Delegate
-# "flocks" through research → plan → execute → review, all talking over a shared
-# broadcast channel (the "Town Wall"). This is our BMAD-crew analog.
+# A Conductor coordinates five BMAD delegates — Analyst, PM, Architect, Developer,
+# QA — each spawned as its own goose subagent session (via sub_recipes / the
+# summon `delegate` tool). Every delegate broadcasts on the shared Town Wall and
+# shows up as its own goose on the Goose Town map:
 #
-#   goose run --recipe recipes/04-bmad-crew.yaml --params goal="Add a health endpoint to the sample service"
+#   bmad-analyst   -> Grand Archive      (researcher)
+#   bmad-pm        -> The Scriptorium    (writer)
+#   bmad-architect -> Steam Forge        (generic)
+#   bmad-dev       -> Cog Factory        (worker)
+#   bmad-qa        -> Inspector's Tower  (reviewer)
 #
-# The crew wiring lives in config/goosetown/ (conductor.yaml + flocks/).
+#   goose run --recipe /recipes/04-bmad-crew.yaml --params goal="Add a /healthz endpoint"
 #
-# The GitHub MCP extension is declared (the crew can act on the repo); the
-# Dynatrace MCP is intentionally omitted — its DT_ENVIRONMENT_URL lives in the
-# collector, not the agent pod.
+# GUARDRAIL: this crew is READ-ONLY. Every delegate's GitHub MCP runs
+# with --read-only, the Developer delegate plans but never writes, and the
+# Conductor is told never to perform repository writes. So a goal typed into the
+# chat UI can never trigger an unintended GitHub write via the Developer delegate.
+# For a write-capable crew, use the ACP crew (recipes/bmad/conductor.yaml +
+# k8s/goose/bmad), which is board-run and gives per-role OTEL service names.
+#
+# OTEL note: sub_recipe delegates run IN-PROCESS, so they share this process's
+# OTEL service.name (goose-goosetown). Per-role breakdown on the
+# agent-efficiency dashboards is by session/delegate name, not service.name —
+# see docs/observability.md Gotcha 5.
 
 version: "1.0.0"
 title: "goosetown BMAD crew"
-description: "A conductor-led, multi-agent crew (research/plan/execute/review) over a shared channel."
+description: "A conductor-led, read-only BMAD crew (analyst -> pm -> architect -> dev -> qa) over the shared Town Wall."
 
 settings:
   goose_provider: "ollama"
+  max_turns: 40
 
 extensions:
-  - type: stdio
-    name: github
-    cmd: github-mcp-server
-    args: ["stdio"]
-    timeout: 300
-    env_keys: [GITHUB_PERSONAL_ACCESS_TOKEN]
+  - type: builtin
+    name: developer
+
+sub_recipes:
+  - name: bmad-analyst
+    path: "./bmad/analyst.yaml"
+    description: "BMAD Analyst — research/findings brief."
+  - name: bmad-pm
+    path: "./bmad/pm.yaml"
+    description: "BMAD Product Manager — scope + acceptance criteria."
+  - name: bmad-architect
+    path: "./bmad/architect.yaml"
+    description: "BMAD Architect — technical design."
+  - name: bmad-dev
+    path: "./bmad/dev.yaml"
+    description: "BMAD Developer — implementation plan (read-only, no writes)."
+  - name: bmad-qa
+    path: "./bmad/qa.yaml"
+    description: "BMAD QA / Test Architect — review verdict."
 
 instructions: |
-  You are the Conductor of a goosetown BMAD crew. Given a goal, coordinate the
-  five BMAD Delegate flocks in sequence — Analyst, Product Manager (PM),
-  Architect, Developer, QA (Test Architect) — as defined in config/goosetown/
-  (analyze → plan/design → implement → review). Rule of thumb: READS run in
-  parallel, WRITES run sequentially. Broadcast each flock's output on the shared
-  channel before the next flock starts. Stop and summarise when QA approves or
-  after two review rounds.
+  You are the Conductor of a goosetown BMAD crew. Coordinate the five BMAD
+  delegates in BMAD order by calling their sub_recipe tools, one at a time, and
+  pass the crew goal to each:
+    1. bmad-analyst    (analyse  — research the goal)
+    2. bmad-pm         (plan     — scope + acceptance criteria)
+    3. bmad-architect  (design   — technical approach)
+    4. bmad-dev        (implement — a concrete change PLAN; READ-ONLY, no writes)
+    5. bmad-qa         (review   — verdict vs the acceptance criteria)
+
+  After each delegate returns, broadcast a one-line summary of its output on the
+  Town Wall before starting the next:
+    gtwall conductor "▶ <role> done: <one line>"
+
+  Rule of thumb: reads may run in parallel, writes run sequentially — but this
+  crew is READ-ONLY, so never perform repository writes yourself and never
+  instruct a delegate to write. Stop and summarise the crew's result when QA
+  approves, or after two review rounds.
 
 prompt: |
   Crew goal: {{ goal }}

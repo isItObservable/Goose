@@ -1,10 +1,18 @@
-"""Minimal web chat UI for goose.
+"""Web chat UI for the Goose Town BMAD crew.
 
-Serves a chat page and a POST /api/chat endpoint that drives `goose run` with
-session resume (`--name` / `--resume`) so the conversation is multi-turn and can
-survive the agent asking for choices.
+Serves a chat page and a POST /api/chat endpoint. Each message the board types is
+treated as a *crew goal*: the server runs the BMAD crew recipe
+(recipes/04-bmad-crew.yaml) with `--params goal=<message>`, which spawns the five
+BMAD delegates (analyst -> pm -> architect -> dev -> qa) as their own goose
+subagent sessions. They broadcast on the shared Town Wall and light up the
+Goose Town map.
 
-The response is captured from stdout; the goose wrapper's telepathy/wall lines
+Guardrail: the crew recipe is READ-ONLY (every delegate's GitHub MCP runs with
+--read-only and the Developer delegate plans but never writes), and this server
+also exports GITHUB_READ_ONLY=1 as defence-in-depth, so a board prompt can never
+trigger an unintended GitHub write.
+
+The final reply is captured from stdout; the goose wrapper's telepathy/wall lines
 go to stderr and are ignored.
 """
 import json
@@ -18,6 +26,10 @@ from starlette.responses import HTMLResponse, JSONResponse
 from starlette.routing import Route
 
 WALL_FILE = os.environ.get("GOOSE_GTWALL_FILE", os.path.expanduser("~/.goosetown/walls/wall.log"))
+# The crew recipe each chat goal drives. Overridable for testing.
+CREW_RECIPE = os.environ.get("GOOSE_CHAT_RECIPE", "/recipes/04-bmad-crew.yaml")
+# A five-delegate crew can take a while on the local Ollama; give it room.
+RUN_TIMEOUT = int(os.environ.get("GOOSE_CHAT_TIMEOUT", "1800"))
 
 
 def post_to_wall(sender: str, message: str) -> None:
@@ -41,7 +53,7 @@ INDEX_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Goose Chat</title>
+<title>Goose Town — BMAD Crew</title>
 <style>
   :root { --bg:#1A1210; --panel:#2D2118; --accent:#B87333; --text:#FFFDD0; }
   * { box-sizing: border-box; }
@@ -60,11 +72,11 @@ INDEX_HTML = """<!DOCTYPE html>
 </style>
 </head>
 <body>
-<header>🦆 Goose Chat</header>
+<header>🦆 Goose Town — BMAD Crew &nbsp;<span style="font-size:12px;color:#8a7a6a">type a goal → watch the geese move on the map</span></header>
 <div id="log"></div>
 <form id="f">
-  <input id="i" autocomplete="off" placeholder="Ask goose something…" />
-  <button id="b" type="submit">Send</button>
+  <input id="i" autocomplete="off" placeholder="Give the crew a goal, e.g. “Add a /healthz endpoint to the sample service”…" />
+  <button id="b" type="submit">Run crew</button>
 </form>
 <script>
 const log = document.getElementById('log');
@@ -117,33 +129,41 @@ document.getElementById('f').addEventListener('submit', (e) => { e.preventDefaul
 
 
 def run_goose(message: str, session: str | None) -> dict:
+    """Run the BMAD crew for one goal.
+
+    Each chat message is an independent crew goal: we launch the conductor recipe
+    (which spawns the five BMAD delegates) as a fresh named session so the map
+    shows one conductor + its delegates per run. `session` is not resumed — a
+    crew run is one-shot — but we echo it back so the UI can label the thread.
+    """
     env = dict(os.environ)
-    cmd = ["goose", "run", "--text", message, "--quiet"]
-    if session:
-        cmd = ["goose", "run", "--resume", "--name", session, "--text", message, "--quiet"]
-    else:
-        cmd = ["goose", "run", "--name", "webchat", "--text", message, "--quiet"]
-        session = "webchat"
+    # Defence-in-depth guardrail: force the GitHub MCP read-only for every
+    # delegate spawned by this run (on top of --read-only in the recipes).
+    env["GITHUB_READ_ONLY"] = "1"
+
+    name = f"bmad-conductor-{datetime.now().strftime('%H%M%S')}"
+    cmd = [
+        "goose", "run", "--name", name,
+        "--recipe", CREW_RECIPE,
+        "--params", f"goal={message}",
+        "--quiet",
+    ]
+    # The human's goal onto the wall first, so the dashboard shows the ask.
+    post_to_wall("board", message)
     try:
         proc = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=600, env=env,
+            cmd, capture_output=True, text=True, timeout=RUN_TIMEOUT, env=env,
         )
     except subprocess.TimeoutExpired:
-        return {"session": session, "error": "goose run timed out (>10 min)"}
+        return {"session": name, "error": f"crew run timed out (>{RUN_TIMEOUT}s)"}
 
     reply = (proc.stdout or "").strip()
-    # The wrapper writes telepathy/wall chatter to stderr; pull the session id if printed.
-    m = re.search(r"(\d{8}_\d+)", proc.stderr or "")
-    if not session or session == "webchat":
-        if m:
-            session = m.group(1)
     if proc.returncode != 0 and not reply:
-        return {"session": session, "error": (proc.stderr or "unknown error").strip()[-500:]}
+        return {"session": name, "error": (proc.stderr or "unknown error").strip()[-500:]}
 
-    # Reflect the turn onto the shared Town Wall so the dashboard shows it.
-    post_to_wall("user", message)
-    post_to_wall("goose", reply)
-    return {"session": session, "reply": reply}
+    # Reflect the conductor's summary onto the shared Town Wall.
+    post_to_wall("bmad-conductor", reply)
+    return {"session": name, "reply": reply}
 
 
 async def chat_page(request):
