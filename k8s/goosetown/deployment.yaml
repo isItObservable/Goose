@@ -114,6 +114,16 @@ spec:
             - name: GITHUB_PERSONAL_ACCESS_TOKEN
               valueFrom:
                 secretKeyRef: { name: goose-secrets, key: GITHUB_TOKEN }
+            # chat -> crew wiring. Each chat message drives this recipe,
+            # which spawns the five BMAD delegates that light up the map.
+            - name: GOOSE_CHAT_RECIPE
+              value: "/recipes/04-bmad-crew.yaml"
+            # Guardrail: force the GitHub MCP read-only for the whole chat/crew
+            # path so a board prompt can never trigger a repository write (belt &
+            # suspenders on top of --read-only in the crew recipes). For a fully
+            # write-proof UI, mount a read-scoped fine-grained PAT in GITHUB_TOKEN.
+            - name: GITHUB_READ_ONLY
+              value: "1"
           volumeMounts:
             - name: goose-state
               mountPath: /home/goose/.goosetown

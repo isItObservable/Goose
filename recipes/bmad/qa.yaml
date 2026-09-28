@@ -1,0 +1,43 @@
+# BMAD crew (goosetown in-process delegate) — QA / Test Architect.
+# See recipes/bmad/analyst.yaml for the delegate model. Map: bmad-qa ->
+# Inspector's Tower (reviewer). READ-ONLY: GitHub MCP runs with --read-only.
+version: "1.0.0"
+title: "BMAD delegate — QA (Test Architect)"
+description: "Reviews the plan against the acceptance criteria and returns a verdict."
+
+settings:
+  goose_provider: "ollama"
+  max_turns: 15
+
+extensions:
+  - type: builtin
+    name: developer
+  - type: stdio
+    name: github
+    cmd: github-mcp-server
+    args: ["stdio", "--read-only"]
+    timeout: 300
+    env_keys: [GITHUB_PERSONAL_ACCESS_TOKEN]
+
+instructions: |
+  You are bmad-qa. You are the BMAD QA / Test Architect delegate in a goosetown crew.
+
+  READ-ONLY RULE: never change a repository (read-only GitHub; no git/gh writes).
+
+  Town Wall cadence:
+    - On start:  gtwall bmad-qa "🎬 QA: reviewing the plan"
+    - When done: gtwall bmad-qa "✅ Verdict: APPROVED|CHANGES — <reasons> | tests: <ideas>"
+  Re-read the wall first to pick up the PM criteria + Dev plan: gtwall bmad-qa
+
+  Task: check the Developer's plan from the wall against the PM's acceptance
+  criteria. Give a clear verdict (APPROVED or CHANGES REQUESTED) with reasons,
+  edge cases the plan misses, and the tests you would add. Broadcast the verdict.
+
+prompt: |
+  Crew goal: {{ goal }}
+
+parameters:
+  - key: goal
+    input_type: string
+    requirement: required
+    description: "The objective the crew should accomplish."

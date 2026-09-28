@@ -70,6 +70,47 @@ s = s.replace(
 p.write_text(s)
 PY
 
+# Teach the goosetown map about BMAD role names. Without this,
+# bmad-analyst / bmad-pm / bmad-dev / bmad-qa render as generic geese because the
+# framework's role patterns only know the default roster. Extend both copies of
+# the patterns (Python: scripts/goosetown-ui ROLE_PATTERNS; JS: ui/js/buildings.js
+# inferRole) so the BMAD delegates path to sensible buildings:
+#   bmad-analyst   -> researcher (Grand Archive)
+#   bmad-pm        -> writer     (The Scriptorium)
+#   bmad-dev       -> worker     (Cog Factory)
+#   bmad-qa        -> reviewer   (Inspector's Tower)
+#   bmad-conductor -> orchestrator (Town Hall)
+#   bmad-architect -> generic    (Steam Forge, via the fall-through)
+RUN python3 - <<'PY'
+import pathlib
+edits = {
+    '/opt/goosetown/scripts/goosetown-ui': [
+        (r'r"orchestrat"',            r'r"orchestrat|conductor"'),
+        (r'r"research"',              r'r"research|analyst"'),
+        (r'r"worker|build|implement"', r'r"worker|build|implement|dev"'),
+        (r'r"review|crossfire"',      r'r"review|crossfire|qa|test"'),
+        (r'r"writ|spec|document"',    r'r"writ|spec|document|pm|product"'),
+    ],
+    '/opt/goosetown/ui/js/buildings.js': [
+        ('/orchestrat/.test(n)',            '/orchestrat|conductor/.test(n)'),
+        ('/research/.test(n)',              '/research|analyst/.test(n)'),
+        ('/worker|build|implement/.test(n)', '/worker|build|implement|dev/.test(n)'),
+        ('/review|crossfire/.test(n)',      '/review|crossfire|qa|test/.test(n)'),
+        ('/writ|spec|document/.test(n)',    '/writ|spec|document|pm|product/.test(n)'),
+    ],
+}
+for path, subs in edits.items():
+    p = pathlib.Path(path)
+    if not p.exists():
+        continue
+    s = p.read_text()
+    for old, new in subs:
+        if old not in s:
+            raise SystemExit(f"BMAD role-pattern patch: marker not found in {path}: {old!r}")
+        s = s.replace(old, new)
+    p.write_text(s)
+PY
+
 # isItObservable recipes (our "recipe") + BMAD crew roles (our "agents").
 COPY recipes/ /recipes/
 COPY config/goosetown/ /opt/goosetown/config/

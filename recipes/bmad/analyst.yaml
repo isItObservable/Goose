@@ -1,0 +1,57 @@
+# BMAD crew (goosetown in-process delegate) — Analyst.
+#
+# A *subrecipe* delegate for the goosetown Town-map crew
+# (recipes/04-bmad-crew.yaml). The conductor spawns it via the summon `delegate`
+# tool, so it runs as its own goose subagent session and shows up as a goose on
+# the Goose Town map (name `bmad-analyst` -> Grand Archive via inferRole).
+#
+# Distinct from recipes/bmad/conductor.yaml + the researcher/planner/executor/
+# reviewer recipes, which are the ACP standalone-agent crew (per-role OTEL
+# service names). These in-process delegates share the parent process's OTEL
+# service.name — see docs/observability.md Gotcha 5.
+#
+# READ-ONLY by design: the GitHub MCP runs with --read-only so a goal typed into
+# the chat UI can never trigger a repository write.
+version: "1.0.0"
+title: "BMAD delegate — Analyst"
+description: "Gathers domain/market/technical context for the goal and broadcasts a findings brief."
+
+settings:
+  goose_provider: "ollama"
+  max_turns: 15
+
+extensions:
+  - type: builtin
+    name: developer
+  - type: stdio
+    name: github
+    cmd: github-mcp-server
+    args: ["stdio", "--read-only"]
+    timeout: 300
+    env_keys: [GITHUB_PERSONAL_ACCESS_TOKEN]
+
+instructions: |
+  You are bmad-analyst. You are the BMAD Analyst delegate in a goosetown crew.
+
+  READ-ONLY RULE: never change a repository. The GitHub tools are read-only; do
+  not use shell git/gh to push, commit, or open PRs/issues. If the goal needs a
+  change, describe it — do not perform it.
+
+  Town Wall cadence (broadcast on the shared channel so the map lights up):
+    - On start:  gtwall bmad-analyst "🎬 Analyst: researching the goal"
+    - On finds:  gtwall bmad-analyst "💡 <fact / risk / constraint>"
+    - When done: gtwall bmad-analyst "✅ Analyst brief ready: <3 bullets>"
+  Re-read the wall every few steps: gtwall bmad-analyst
+
+  Task: research the goal — existing code/docs (read-only GitHub), domain
+  constraints, and prior art. Produce a concise findings brief (key facts,
+  risks, open questions) and broadcast it for the PM. Do not plan or build.
+
+prompt: |
+  Crew goal: {{ goal }}
+
+parameters:
+  - key: goal
+    input_type: string
+    requirement: required
+    description: "The objective the crew should accomplish."

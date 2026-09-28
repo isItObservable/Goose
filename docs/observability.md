@@ -266,3 +266,29 @@ needed — the tile flips `role_count == 1` → `5` automatically when it lands.
 > updated for v1.52.0 — image `ghcr.io/aaif-goose/goose:latest`, command
 > `goose serve --host 0.0.0.0 --port 4000` (not `goose acp`), plus
 > `GOOSE_SERVER__SECRET_KEY`. See `k8s/goose/bmad/`.
+
+### ⚠️ Gotcha 5 — the goosetown UI crew is one `service.name`; per-role split is by session, not service
+
+The Goose Town map crew (`recipes/04-bmad-crew.yaml`, driven from the chat UI)
+is the **in-process** BMAD crew: the Conductor spawns the five
+delegates via `sub_recipes` / the summon `delegate` tool. Verified against
+**Goose v1.52.0** by reading the source: subagents run as in-process `tokio`
+tasks (`crates/goose/src/agents/subagent_handler.rs`), and the OTel `Resource`
+— including `service.name` — is built **once at process start** from a single
+`OTEL_SERVICE_NAME` (`crates/goose/src/otel/otlp.rs::create_resource`, default
+`"goose"`). There is no per-subagent resource.
+
+**Consequence:** you **cannot** give each in-process delegate its own
+`OTEL_SERVICE_NAME`. All five BMAD delegates spawned by the chat crew share the
+pod's `service.name` (`goose-goosetown`). So on the map/chat path, per-role
+breakdown is by **session / delegate name** (`bmad-analyst`, `bmad-pm`,
+`bmad-architect`, `bmad-dev`, `bmad-qa` — which is also what lights the geese on
+the map, via `inferRole`), **not** by `service.name`.
+
+**If you need true per-role `service.name`** (e.g. to drive the agent-efficiency
+`service` variable and "p95 by role" tile in §6), run the **ACP crew** instead
+(`recipes/bmad/conductor.yaml` + `k8s/goose/bmad/`): each role is a separate
+Goose process with its own `OTEL_SERVICE_NAME`. That crew is board-run and
+write-capable; the goosetown UI crew is intentionally read-only and optimised for
+the live map demo, not for per-service dashboards. Same trade as Gotcha 4:
+in-process is the working default; the per-service form needs separate processes.

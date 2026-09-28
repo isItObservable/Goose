@@ -127,16 +127,30 @@ loop over four **Delegate flocks**, following one golden rule: **READS run in
 parallel** (researcher, reviewer), **WRITES run sequentially** (planner →
 executor). There are two ways to run it, and this repo ships both.
 
-**1. In-process (the working default).** One Goose agent runs the whole crew
-from a single recipe; the flocks are logical roles inside that process.
+**1. In-process (the working default).** A Conductor runs the crew from a single
+recipe and spawns the five BMAD delegates — Analyst, PM, Architect, Developer,
+QA — as its own Goose subagent sessions (via `sub_recipes` / the summon
+`delegate` tool). Each delegate broadcasts on the shared Town Wall and appears as
+its own goose on the Goose Town map.
 
 ```bash
 make crew                   # runs recipes/04-bmad-crew.yaml
 ```
 
-The wiring lives in [`config/goosetown/`](config/goosetown/)
-([`conductor.yaml`](config/goosetown/conductor.yaml) + `flocks/`). This is the
-simplest way to see the pattern and it works on the pinned Goose **v1.46.0**.
+The delegate recipes live in [`recipes/bmad/`](recipes/bmad/)
+(`analyst.yaml` / `pm.yaml` / `architect.yaml` / `dev.yaml` / `qa.yaml`); the
+descriptive flock roster is in [`config/goosetown/`](config/goosetown/).
+
+**From the Goose Town UI (the map).** The chat box (`goose-chat`, port 4250)
+treats each message as a **crew goal**: it runs `recipes/04-bmad-crew.yaml` with
+`--params goal=<msg>`, so the board can type a goal and watch the BMAD geese move
+on the village map. This UI path is **read-only** — every delegate's GitHub MCP
+runs with `--read-only` and the Developer delegate plans but never writes — so a
+board prompt can never trigger an unintended repository write. Because the
+delegates run in-process they share one `OTEL_SERVICE_NAME`; per-role breakdown
+on the map is by session name, not `service.name` (see
+[`docs/observability.md`](docs/observability.md) Gotcha 5). For a write-capable,
+per-service-name crew, use the ACP form below.
 
 **2. ACP-deployed (the upgrade path).** Each role becomes its **own** Goose
 agent — a Deployment + Service in the cluster — so the Conductor can dispatch

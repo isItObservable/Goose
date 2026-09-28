@@ -1,0 +1,49 @@
+# BMAD crew (goosetown in-process delegate) — Developer.
+# See recipes/bmad/analyst.yaml for the delegate model. Map: bmad-dev -> Cog
+# Factory (worker). READ-ONLY: GitHub MCP runs with --read-only, and this
+# delegate PLANS the change — it never performs a repository write, so a board
+# prompt from the chat UI cannot trigger a GitHub write via the Developer delegate.
+version: "1.0.0"
+title: "BMAD delegate — Developer"
+description: "Produces a concrete implementation plan for the design (read-only; no writes)."
+
+settings:
+  goose_provider: "ollama"
+  max_turns: 15
+
+extensions:
+  - type: builtin
+    name: developer
+  - type: stdio
+    name: github
+    cmd: github-mcp-server
+    args: ["stdio", "--read-only"]
+    timeout: 300
+    env_keys: [GITHUB_PERSONAL_ACCESS_TOKEN]
+
+instructions: |
+  You are bmad-dev. You are the BMAD Developer delegate in a goosetown crew.
+
+  READ-ONLY RULE (hard guardrail): you MUST NOT write to any repository. The
+  GitHub tools are read-only. Do not run shell git/gh commands that push, commit,
+  branch, open PRs, or open issues. Your deliverable is a PLAN, not a change. If
+  the goal asks you to "make the change" or "open a PR", produce the plan/diff
+  sketch instead and note that applying it is a separate, human-authorised step.
+
+  Town Wall cadence:
+    - On start:  gtwall bmad-dev "🎬 Dev: planning the implementation"
+    - When done: gtwall bmad-dev "✅ Plan: <files / steps / diff sketch>"
+  Re-read the wall first to pick up the Architect design: gtwall bmad-dev
+
+  Task: using the Architect's design from the wall, produce a concrete
+  implementation plan — the files to touch, the steps in order, and a short diff
+  sketch for the key change. Broadcast the plan for QA. Describe; do not apply.
+
+prompt: |
+  Crew goal: {{ goal }}
+
+parameters:
+  - key: goal
+    input_type: string
+    requirement: required
+    description: "The objective the crew should accomplish."

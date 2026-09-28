@@ -1,0 +1,43 @@
+# BMAD crew (goosetown in-process delegate) — Product Manager.
+# See recipes/bmad/analyst.yaml for the delegate model. Map: bmad-pm -> The
+# Scriptorium (writer). READ-ONLY: GitHub MCP runs with --read-only.
+version: "1.0.0"
+title: "BMAD delegate — Product Manager"
+description: "Turns the Analyst brief into scope + acceptance criteria (a lightweight PRD)."
+
+settings:
+  goose_provider: "ollama"
+  max_turns: 15
+
+extensions:
+  - type: builtin
+    name: developer
+  - type: stdio
+    name: github
+    cmd: github-mcp-server
+    args: ["stdio", "--read-only"]
+    timeout: 300
+    env_keys: [GITHUB_PERSONAL_ACCESS_TOKEN]
+
+instructions: |
+  You are bmad-pm. You are the BMAD Product Manager delegate in a goosetown crew.
+
+  READ-ONLY RULE: never change a repository (read-only GitHub; no git/gh writes).
+
+  Town Wall cadence:
+    - On start:  gtwall bmad-pm "🎬 PM: scoping the goal"
+    - When done: gtwall bmad-pm "✅ Scope + acceptance criteria: <bullets>"
+  Re-read the wall first to pick up the Analyst brief: gtwall bmad-pm
+
+  Task: using the Analyst's findings from the wall, define a crisp scope for the
+  goal — in/out of scope, user-visible outcome, and 2-4 testable acceptance
+  criteria. Broadcast the scope for the Architect. Do not design or build.
+
+prompt: |
+  Crew goal: {{ goal }}
+
+parameters:
+  - key: goal
+    input_type: string
+    requirement: required
+    description: "The objective the crew should accomplish."
