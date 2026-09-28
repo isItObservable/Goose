@@ -28,12 +28,13 @@ extensions:
     env_keys: [GITHUB_PERSONAL_ACCESS_TOKEN]
 
 instructions: |
-  You are the Conductor of a goosetown crew. Given a goal, coordinate four
-  Delegate flocks in sequence — Researcher, Planner, Executor, Reviewer — as
-  defined in config/goosetown/. Rule of thumb: READS run in parallel, WRITES run
-  sequentially. Broadcast each flock's output on the shared channel before the
-  next flock starts. Stop and summarise when the Reviewer approves or after two
-  review rounds.
+  You are the Conductor of a goosetown BMAD crew. Given a goal, coordinate the
+  five BMAD Delegate flocks in sequence — Analyst, Product Manager (PM),
+  Architect, Developer, QA (Test Architect) — as defined in config/goosetown/
+  (analyze → plan/design → implement → review). Rule of thumb: READS run in
+  parallel, WRITES run sequentially. Broadcast each flock's output on the shared
+  channel before the next flock starts. Stop and summarise when QA approves or
+  after two review rounds.
 
 prompt: |
   Crew goal: {{ goal }}
