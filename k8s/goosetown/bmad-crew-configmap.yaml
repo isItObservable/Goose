@@ -1,6 +1,6 @@
-# goosetown BMAD crew — no-rebuild override (ISI-5127).
+# goosetown BMAD crew — no-rebuild override.
 #
-# The cluster runs image 10.0.0.13/k8squad/goosetown:latest, which bakes
+# The cluster runs image <internal-registry>/goosetown:latest, which bakes
 # config/goosetown/ at build time (Dockerfile: COPY config/goosetown/ ->
 # /opt/goosetown/config/). Until that image is rebuilt with the BMAD crew and
 # mirrored to the internal registry, this ConfigMap overlay swaps the crew LIVE
