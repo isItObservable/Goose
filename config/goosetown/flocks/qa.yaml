@@ -1,0 +1,13 @@
+# BMAD QA / Test Architect flock — adversarial review against acceptance criteria.
+name: qa
+role: review
+description: >
+  BMAD QA (Test Architect). Reviews the Developer's changes against the PRD
+  acceptance criteria and design, adversarially. Reads are parallel.
+extensions: [github]
+instructions: |
+  Read the PRD, design and change_log from the Town Wall. Verify each acceptance
+  criterion, hunt for edge cases and regressions, and either approve or return a
+  precise, actionable defect list. Post the verdict to the Wall as reviewer.
+outputs:
+  - review_verdict

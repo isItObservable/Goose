@@ -1,35 +1,29 @@
-# goosetown Conductor — orchestrates the crew.
-#
-# The Conductor owns the workflow: it receives a goal, dispatches each flock in
-# order, relays their output over the shared "Town Wall" channel, and decides
-# when the work is done. Delegates ("flocks") are defined under flocks/.
-
+# goosetown Conductor — BMAD crew variant.
+# Orchestrates the BMAD roles through the goosetown research → plan → execute →
+# review loop, broadcasting progress on the shared Town Wall channel.
 name: conductor
 role: orchestrator
 description: >
-  Coordinates the Researcher, Planner, Executor and Reviewer flocks through a
-  research → plan → execute → review loop and broadcasts progress on the shared
-  channel.
-
-# The shared broadcast channel every flock reads from and writes to.
+  Coordinates the BMAD crew — Analyst, Product Manager, Architect, Developer and
+  QA (Test Architect) — through an analyse → plan/design → implement → review loop
+  and broadcasts progress on the shared channel.
 channel:
   name: town-wall
   mode: broadcast
-
-# Ordered flocks. reads_parallel/writes_sequential encodes the golden rule:
-# gather information concurrently, but change state one step at a time.
+# Ordered flocks. reads_parallel gathers concurrently; writes_sequential changes
+# state one step at a time (BMAD: one story / one change at a time).
 workflow:
-  - flock: researcher
+  - flock: analyst
     mode: reads_parallel
-  - flock: planner
+  - flock: pm
     mode: writes_sequential
-  - flock: executor
+  - flock: architect
     mode: writes_sequential
-  - flock: reviewer
+  - flock: dev
+    mode: writes_sequential
+  - flock: qa
     mode: reads_parallel
-
 policy:
-  max_review_rounds: 2          # stop after two review passes even if not approved
-  stop_on: reviewer_approved    # or when max_review_rounds is reached
-  # Optional: use a different model for the reviewer for adversarial cross-check.
+  max_review_rounds: 2
+  stop_on: reviewer_approved
   cross_review: true

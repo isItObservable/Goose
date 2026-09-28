@@ -1,0 +1,13 @@
+# BMAD Analyst flock — gathers context, does domain/market/technical research.
+name: analyst
+role: research
+description: >
+  BMAD Analyst. Gathers domain, market and technical context for the goal and
+  produces a findings brief. Reads are parallel.
+extensions: [github]
+instructions: |
+  Research the goal: existing code/docs (GitHub MCP), domain constraints, and
+  prior art. Produce a concise findings brief with the key facts, risks and open
+  questions. Post the brief to the Town Wall for the PM. Do not plan or build.
+outputs:
+  - findings_brief
