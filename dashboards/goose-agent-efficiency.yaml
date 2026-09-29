@@ -1,0 +1,348 @@
+# Goose AI observability dashboard — Agent Efficiency
+# Exported from Dynatrace via `dtctl get dashboard <id> -o yaml` and scrubbed for public use.
+# Internal tenant metadata removed (id, owner, modificationInfo, version) so `dtctl apply`
+# CREATEs a fresh dashboard with an auto-generated ID on whatever tenant you point at.
+#
+# Deploy:  dtctl apply -f dashboards/goose-agent-efficiency.yaml
+#
+# Requires: a dtctl context with documents:direct-shares + document write scope on your
+# Dynatrace environment, and the Goose OTel collector pipeline feeding gen_ai.* spans +
+# goose.* metrics + dt.kubernetes.* pod metrics (see the tutorial for the collector config).
+name: Goose AI — Agent Efficiency
+type: dashboard
+isPrivate: true
+content:
+  annotations: []
+  layouts:
+    '0':
+      h: 2
+      w: 24
+      x: 0
+      y: 0
+    '1':
+      h: 1
+      w: 24
+      x: 0
+      y: 2
+    '2':
+      h: 6
+      w: 12
+      x: 0
+      y: 3
+    '3':
+      h: 6
+      w: 12
+      x: 12
+      y: 3
+    '4':
+      h: 5
+      w: 24
+      x: 0
+      y: 9
+    '5':
+      h: 1
+      w: 24
+      x: 0
+      y: 14
+    '6':
+      h: 6
+      w: 12
+      x: 0
+      y: 15
+    '7':
+      h: 6
+      w: 12
+      x: 12
+      y: 15
+    '8':
+      h: 6
+      w: 24
+      x: 0
+      y: 21
+    '9':
+      h: 1
+      w: 24
+      x: 0
+      y: 27
+    '10':
+      h: 6
+      w: 12
+      x: 0
+      y: 28
+    '11':
+      h: 6
+      w: 12
+      x: 12
+      y: 28
+  settings:
+    gridLayout:
+      columnsCount: 24
+  tiles:
+    '0':
+      content: '# 🪿 Goose AI · Agent Efficiency
+
+        Per-agent economics from `gen_ai.agent.name` (real agent identity) joined to token/tool spans by `trace.id`. Who spends the most tokens, who calls the most tools, which tools are hot vs. cold. *Window: last 7 days.*'
+      type: markdown
+    '1':
+      content: '## Which agent consumes the most?'
+      type: markdown
+    '2':
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: 'fetch spans, from:now()-7d
+
+        | filter contains(service.name, "goose")
+
+        | summarize agent = takeFirst(gen_ai.agent.name), inTok = sum(gen_ai.usage.input_tokens), outTok = sum(gen_ai.usage.output_tokens), tools = countIf(gen_ai.operation.name == "execute_tool"), by:{trace.id}
+
+        | filter isNotNull(agent)
+
+        | summarize totalTokens = sum(inTok) + sum(outTok), by:{agent}
+
+        | sort totalTokens desc'
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 100
+        maxResultRecords: 1000
+      title: Token consumption per agent
+      type: data
+      visualization: categoricalBarChart
+      visualizationSettings:
+        autoSelectVisualization: false
+        chartSettings:
+          legend:
+            position: bottom
+        coloring:
+          colorRules:
+          - colorMode: color-palette
+            colorPalette: purple-rain
+            comparator: = *value*
+            field: DT.name
+            type: string
+            value: ''
+    '3':
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: 'fetch spans, from:now()-7d
+
+        | filter contains(service.name, "goose")
+
+        | summarize agent = takeFirst(gen_ai.agent.name), inTok = sum(gen_ai.usage.input_tokens), outTok = sum(gen_ai.usage.output_tokens), tools = countIf(gen_ai.operation.name == "execute_tool"), by:{trace.id}
+
+        | filter isNotNull(agent)
+
+        | summarize toolCalls = sum(tools), by:{agent}
+
+        | sort toolCalls desc'
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 100
+        maxResultRecords: 1000
+      title: Tool calls per agent
+      type: data
+      visualization: categoricalBarChart
+      visualizationSettings:
+        autoSelectVisualization: false
+        chartSettings:
+          legend:
+            position: bottom
+        coloring:
+          colorRules:
+          - colorMode: color-palette
+            colorPalette: purple-rain
+            comparator: = *value*
+            field: DT.name
+            type: string
+            value: ''
+    '4':
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: 'fetch spans, from:now()-7d
+
+        | filter contains(service.name, "goose")
+
+        | summarize agent = takeFirst(gen_ai.agent.name), inTok = sum(gen_ai.usage.input_tokens), outTok = sum(gen_ai.usage.output_tokens), tools = countIf(gen_ai.operation.name == "execute_tool"), by:{trace.id}
+
+        | filter isNotNull(agent)
+
+        | summarize totalTokens = sum(inTok) + sum(outTok), toolCalls = sum(tools), sessions = count(), by:{agent}
+
+        | fieldsAdd avgTokensPerSession = totalTokens / sessions
+
+        | sort totalTokens desc'
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 100
+        maxResultRecords: 1000
+      title: Per-agent scorecard (tokens · tools · sessions · tokens/session)
+      type: data
+      visualization: table
+      visualizationSettings:
+        autoSelectVisualization: false
+    '5':
+      content: '## Tool usage — hot vs. cold'
+      type: markdown
+    '6':
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: 'fetch spans, from:now()-7d
+
+        | filter span.name == "dispatch_tool_call" and isNotNull(gen_ai.tool.name)
+
+        | summarize calls = count(), by:{gen_ai.tool.name}
+
+        | sort calls desc
+
+        | limit 15'
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 100
+        maxResultRecords: 1000
+      title: Most-used tools
+      type: data
+      visualization: categoricalBarChart
+      visualizationSettings:
+        autoSelectVisualization: false
+        chartSettings:
+          legend:
+            position: bottom
+        coloring:
+          colorRules:
+          - colorMode: color-palette
+            colorPalette: purple-rain
+            comparator: = *value*
+            field: DT.name
+            type: string
+            value: ''
+    '7':
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: 'fetch spans, from:now()-7d
+
+        | filter span.name == "dispatch_tool_call" and isNotNull(gen_ai.tool.name)
+
+        | summarize calls = count(), by:{gen_ai.tool.name}
+
+        | sort calls asc
+
+        | limit 15'
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 100
+        maxResultRecords: 1000
+      title: Least-used tools (cold — candidates for unused)
+      type: data
+      visualization: categoricalBarChart
+      visualizationSettings:
+        autoSelectVisualization: false
+        chartSettings:
+          legend:
+            position: bottom
+        coloring:
+          colorRules:
+          - colorMode: color-palette
+            colorPalette: purple-rain
+            comparator: = *value*
+            field: DT.name
+            type: string
+            value: ''
+    '8':
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: 'fetch spans, from:now()-7d
+
+        | filter span.name == "dispatch_tool_call" and isNotNull(gen_ai.tool.name)
+
+        | summarize calls = count(), by:{trace.id, gen_ai.tool.name}
+
+        | join [ fetch spans, from:now()-7d | filter isNotNull(gen_ai.agent.name) | summarize agent = takeFirst(gen_ai.agent.name), by:{trace.id} ], kind:inner, on:{trace.id}, fields:{agent = agent}
+
+        | summarize calls = sum(calls), by:{agent, gen_ai.tool.name}
+
+        | sort calls desc'
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 100
+        maxResultRecords: 1000
+      title: Tool calls by agent × tool
+      type: data
+      visualization: table
+      visualizationSettings:
+        autoSelectVisualization: false
+    '9':
+      content: '## LLM & session efficiency'
+      type: markdown
+    '10':
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: 'fetch spans, from:now()-7d
+
+        | filter span.name == "stream_response_from_provider"
+
+        | summarize calls = count(), avgSec = avg(duration)/1000000000.0, p95Sec = percentile(duration,95)/1000000000.0, by:{gen_ai.request.model}'
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 100
+        maxResultRecords: 1000
+      title: LLM call latency by model (avg / p95, seconds)
+      type: data
+      visualization: table
+      visualizationSettings:
+        autoSelectVisualization: false
+    '11':
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: 'fetch spans, from:now()-7d
+
+        | filter contains(service.name, "goose")
+
+        | summarize agent = takeFirst(gen_ai.agent.name), inTok = sum(gen_ai.usage.input_tokens), outTok = sum(gen_ai.usage.output_tokens), tools = countIf(gen_ai.operation.name == "execute_tool"), by:{trace.id}
+
+        | filter isNotNull(agent)
+
+        | summarize avgToolsPerSession = avg(tools), maxToolsPerSession = max(tools)'
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 100
+        maxResultRecords: 1000
+      title: Avg tools per session
+      type: data
+      visualization: singleValue
+      visualizationSettings:
+        autoSelectVisualization: false
+        singleValue:
+          prefixIcon: ''
+  variables: []
+  version: 21

@@ -209,6 +209,64 @@ Because it runs inside the instrumented Goose pod, the whole read → reason →
 flow shows up as one span tree in the dashboards — you can see exactly which MCP
 tool calls the agent made and how long each took.
 
+### Connect to the chat interface and run the crew
+
+This is the payoff: type a goal into a chat box, and watch the two dashboards you
+just deployed fill with live telemetry from the crew that runs it.
+
+**Prerequisites.** You've deployed the collectors (`make deploy-collector`), Goose
+(`make deploy-goose`), goosetown (`make goosetown`), and the dashboards
+(`dtctl apply -f dashboards/*.yaml`, or `make dashboards`).
+
+**1. Open the chat UI.** goosetown exposes a `LoadBalancer` service that carries
+both the map dashboard (port 80) and the chat interface (port 4251):
+
+```bash
+# grab the external address
+kubectl -n goosetown get svc goosetown-ui
+# → open  http://<EXTERNAL-IP>:4251  for the chat interface
+
+# no LoadBalancer? port-forward instead:
+kubectl -n goosetown port-forward svc/goosetown-ui 4251:4251
+# → open  http://localhost:4251
+```
+
+**2. Submit a goal.** Type a goal into the box and hit send. Each message is
+treated as an independent **crew goal**: the server launches the in-process BMAD
+crew (`recipes/04-bmad-crew.yaml`) with `--params goal=<your message>`, and the
+Conductor spawns the five delegates — Analyst, PM, Architect, Developer, QA. The
+whole path is **read-only** (every delegate's GitHub MCP runs with `--read-only`,
+and the server also exports `GITHUB_READ_ONLY=1`), so a typed goal can never
+trigger a repository write. A safe first goal:
+
+```
+Add a /healthz endpoint to the sample service
+```
+
+**3. Watch the dashboards fill.** This is the reliable, demonstrable result.
+Within a few seconds of submitting the goal, the crew starts emitting telemetry
+and both dashboards come alive:
+
+- **Goose — Engine Health**: token usage, session duration, and tool-call vs
+  tool-completion counts climb as the crew works.
+- **Goose — Agent Efficiency**: the `gen_ai` span tree shows per-tool latency and
+  which model/tools the delegates lean on, keyed by session.
+
+Because the chat crew runs **in-process**, all five delegates share one
+`service.name` (`goose-goosetown`); the per-role breakdown is by **session /
+delegate name** (`bmad-analyst`, `bmad-pm`, `bmad-architect`, `bmad-dev`,
+`bmad-qa`), not by `service.name` — see
+[`docs/observability.md`](docs/observability.md) Gotcha 5.
+
+> **About the village map.** The chat UI ships alongside a Goose Town village map,
+> and the same session names that split the dashboards are what light the geese on
+> it. Treat the animated map as a work in progress, not the guaranteed payoff:
+> because we run the crew in-process (one `service.name`, no per-role service
+> topology behind the map), a fully animated per-role "moving geese" view is a
+> future stretch, not something this tutorial promises. The dependable result you
+> can demo today is the **dashboards filling** — that's the signal that the
+> chat → crew → telemetry path is working end to end.
+
 ---
 
 ## The observability gotchas (read these before you debug)
@@ -244,7 +302,7 @@ version:
 ├── recipes/               ← Goose recipes (the reusable, shareable unit)
 ├── config/                ← goose config + goosetown crew definitions
 ├── k8s/                   ← operators, collectors, Goose deployment
-├── dashboards/            ← Dynatrace dashboards (JSON)
+├── dashboards/            ← Dynatrace dashboards (dtctl YAML)
 └── scripts/               ← numbered, idempotent deploy scripts
 ```
 

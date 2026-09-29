@@ -167,20 +167,27 @@ session — the raw material for the **agent-efficiency** dashboard.
 
 ## 4. The two dashboards
 
-Both live in [`../dashboards/`](../dashboards/) as Dynatrace dashboard JSON and
-are published by `scripts/07-apply-dashboards.sh`.
+Both live in [`../dashboards/`](../dashboards/) as dtctl document YAML and are
+published by `scripts/07-apply-dashboards.sh` (which wraps `dtctl apply -f`).
+You can also apply either one directly:
 
-### `goose-engine-health.json`
+```bash
+dtctl apply -f dashboards/goose-engine-health.yaml
+dtctl apply -f dashboards/goose-agent-efficiency.yaml
+```
 
-Built from the metrics above: token usage, session duration, tool-call vs
-tool-completion counts, session throughput. Answers *"is the engine healthy and
-how hard is it working?"*
+### `goose-engine-health.yaml`
 
-### `goose-agent-efficiency.json`
+Built from the metrics above: fleet token flow, session duration, tool-call
+health (`goose.tool_completions / goose.tool_calls`), session throughput, and
+pod CPU/memory. Answers *"is the engine healthy and how hard is it working?"*
 
-Built from the `gen_ai` span tree: per-tool latency, model attribution, and
-session flow via `gen_ai.conversation.id`. Answers *"where is the agent spending
-time, and which tools/models dominate?"*
+### `goose-agent-efficiency.yaml`
+
+Built from the `gen_ai` span tree: per-agent token economics (via
+`gen_ai.agent.name` joined to token/tool spans by `trace.id`), tool hot/cold
+ranking, and a per-agent scorecard. Answers *"who spends the tokens, and which
+tools/models dominate?"*
 
 ---
 
