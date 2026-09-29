@@ -96,8 +96,11 @@ make simple-agent
 make wire-mcp
 make crew
 
-# 6. Publish the Dynatrace dashboards
+# 6. Deploy the Dynatrace dashboards (dtctl apply -f dashboards/*.yaml)
 make dashboards
+
+# 7. Open the chat UI, submit a goal, and watch the dashboards fill
+make goosetown
 ```
 
 Or run the whole path at once: `make all`. Tear it all down with `make teardown`.
@@ -117,8 +120,9 @@ section below, so the automation and the walkthrough stay in lockstep.
 5. **Build a simple agent** — [`recipes/01-simple-agent.yaml`](recipes/01-simple-agent.yaml).
 6. **Wire the MCPs** — [`recipes/02-dynatrace-mcp.yaml`](recipes/02-dynatrace-mcp.yaml), [`03-github-mcp.yaml`](recipes/03-github-mcp.yaml), [`05-pr-review.yaml`](recipes/05-pr-review.yaml).
 7. **Orchestrate a BMAD crew (goosetown)** — in-process [`config/goosetown/`](config/goosetown/), or ACP-deployed [`recipes/bmad/`](recipes/bmad/) + [`k8s/goose/bmad/`](k8s/goose/bmad/).
-8. **Observe it** — [`docs/observability.md`](docs/observability.md) · dashboards in [`dashboards/`](dashboards/).
-9. **Teardown** — `make teardown`.
+8. **Observe it** — [`docs/observability.md`](docs/observability.md) · deploy the dashboards with `dtctl apply -f dashboards/*.yaml` (YAML in [`dashboards/`](dashboards/)).
+9. **Connect to the chat interface & run the crew** — open the chat UI, submit a goal, watch the dashboards fill ([below](#connect-to-the-chat-interface-and-run-the-crew)).
+10. **Teardown** — `make teardown`.
 
 ### The BMAD crew: in-process (default) vs. ACP-deployed
 
@@ -143,8 +147,11 @@ descriptive flock roster is in [`config/goosetown/`](config/goosetown/).
 
 **From the Goose Town UI (the map).** The chat box (`goose-chat`, port 4250)
 treats each message as a **crew goal**: it runs `recipes/04-bmad-crew.yaml` with
-`--params goal=<msg>`, so the board can type a goal and watch the BMAD geese move
-on the village map. This UI path is **read-only** — every delegate's GitHub MCP
+`--params goal=<msg>`, so you can type a goal and watch the resulting crew run
+land as live telemetry on the two dashboards (the reliable payoff; the animated
+village map is a future stretch — see
+[Connect to the chat interface & run the crew](#connect-to-the-chat-interface-and-run-the-crew)).
+This UI path is **read-only** — every delegate's GitHub MCP
 runs with `--read-only` and the Developer delegate plans but never writes — so a
 board prompt can never trigger an unintended repository write. Because the
 delegates run in-process they share one `OTEL_SERVICE_NAME`; per-role breakdown
