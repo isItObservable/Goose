@@ -2,7 +2,7 @@ name: build-goosetown-image
 
 on:
   push:
-    branches: [main, feat/goose-observability-tutorial]
+    branches: [main, feat/goose-observability-tutorial, feat/goosetown-bmad-crew]
     paths:
       - "Dockerfile"
       - "recipes/**"
