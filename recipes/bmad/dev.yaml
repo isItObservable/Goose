@@ -45,5 +45,6 @@ prompt: |
 parameters:
   - key: goal
     input_type: string
-    requirement: required
-    description: "The objective the crew should accomplish."
+    requirement: optional
+    default: ""
+    description: "The objective the crew should accomplish. When invoked as a goosetown delegate the goal is provided via the conductor's instructions."

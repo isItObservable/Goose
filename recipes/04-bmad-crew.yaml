@@ -56,8 +56,14 @@ sub_recipes:
 
 instructions: |
   You are the Conductor of a goosetown BMAD crew. Coordinate the five BMAD
-  delegates in BMAD order by calling their sub_recipe tools, one at a time, and
-  pass the crew goal to each:
+  delegates in BMAD order by calling their sub_recipe tools, one at a time.
+  When you call each delegate you MUST pass two fields:
+    - instructions: a clear, specific task description referencing the crew goal
+    - params: {"goal": "<full crew goal text>"}
+  (The params field is required — without it the sub-recipe will error with
+  "Missing required parameters: goal". Always include it verbatim.)
+
+  Delegate order:
     1. bmad-analyst    (analyse  — research the goal)
     2. bmad-pm         (plan     — scope + acceptance criteria)
     3. bmad-architect  (design   — technical approach)
