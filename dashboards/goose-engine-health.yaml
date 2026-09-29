@@ -1,0 +1,334 @@
+# Goose AI observability dashboard — Engine Health
+# Exported from Dynatrace via `dtctl get dashboard <id> -o yaml` and scrubbed for public use.
+# Internal tenant metadata removed (id, owner, modificationInfo, version) so `dtctl apply`
+# CREATEs a fresh dashboard with an auto-generated ID on whatever tenant you point at.
+#
+# Deploy:  dtctl apply -f dashboards/goose-engine-health.yaml
+#
+# Requires: a dtctl context with documents:direct-shares + document write scope on your
+# Dynatrace environment, and the Goose OTel collector pipeline feeding gen_ai.* spans +
+# goose.* metrics + dt.kubernetes.* pod metrics (see the tutorial for the collector config).
+name: Goose AI — Engine Health
+type: dashboard
+isPrivate: true
+content:
+  annotations: []
+  layouts:
+    '0':
+      h: 2
+      w: 24
+      x: 0
+      y: 0
+    '1':
+      h: 1
+      w: 24
+      x: 0
+      y: 2
+    '2':
+      h: 4
+      w: 6
+      x: 0
+      y: 3
+    '3':
+      h: 4
+      w: 6
+      x: 6
+      y: 3
+    '4':
+      h: 4
+      w: 6
+      x: 12
+      y: 3
+    '5':
+      h: 4
+      w: 6
+      x: 18
+      y: 3
+    '6':
+      h: 1
+      w: 24
+      x: 0
+      y: 7
+    '7':
+      h: 6
+      w: 12
+      x: 0
+      y: 8
+    '8':
+      h: 6
+      w: 12
+      x: 12
+      y: 8
+    '9':
+      h: 1
+      w: 24
+      x: 0
+      y: 14
+    '10':
+      h: 6
+      w: 12
+      x: 0
+      y: 15
+    '11':
+      h: 6
+      w: 12
+      x: 12
+      y: 15
+    '12':
+      h: 6
+      w: 12
+      x: 0
+      y: 21
+    '13':
+      h: 6
+      w: 12
+      x: 12
+      y: 21
+  settings:
+    gridLayout:
+      columnsCount: 24
+  tiles:
+    '0':
+      content: '# 🪿 Goose AI · Engine Health
+
+        Native OTel from the Goose fleet (`goose` + `goosetown`) → collector (4318, redaction, cumulativetodelta) → Dynatrace Grail. Fleet KPIs, pod resource usage, token flow, tool-call health. *Window: last 7 days.*'
+      type: markdown
+    '1':
+      content: '## Fleet at a glance'
+      type: markdown
+    '2':
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: 'fetch spans, from:now()-7d
+
+        | filter span.name == "stream_response_from_provider"
+
+        | summarize tokens = sum(gen_ai.usage.input_tokens) + sum(gen_ai.usage.output_tokens)'
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 100
+        maxResultRecords: 1000
+      title: Tokens consumed
+      type: data
+      visualization: singleValue
+      visualizationSettings:
+        autoSelectVisualization: false
+        singleValue:
+          prefixIcon: ''
+    '3':
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: 'fetch spans, from:now()-7d
+
+        | filter isNotNull(gen_ai.agent.name)
+
+        | summarize agents = countDistinctExact(gen_ai.agent.name)'
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 100
+        maxResultRecords: 1000
+      title: Active agents
+      type: data
+      visualization: singleValue
+      visualizationSettings:
+        autoSelectVisualization: false
+        singleValue:
+          prefixIcon: ''
+    '4':
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: 'fetch spans, from:now()-7d
+
+        | filter span.name == "dispatch_tool_call"
+
+        | summarize toolCalls = count()'
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 100
+        maxResultRecords: 1000
+      title: Tool calls
+      type: data
+      visualization: singleValue
+      visualizationSettings:
+        autoSelectVisualization: false
+        singleValue:
+          prefixIcon: ''
+    '5':
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: 'fetch spans, from:now()-7d
+
+        | filter gen_ai.operation.name == "invoke_agent"
+
+        | summarize sessions = count()'
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 100
+        maxResultRecords: 1000
+      title: Sessions
+      type: data
+      visualization: singleValue
+      visualizationSettings:
+        autoSelectVisualization: false
+        singleValue:
+          prefixIcon: ''
+    '6':
+      content: '## Pod resource usage (goose & goosetown workloads)'
+      type: markdown
+    '7':
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: timeseries cpu = avg(dt.kubernetes.container.cpu_usage), by:{k8s.workload.name}, from:now()-7d, filter:{in(k8s.namespace.name, array("goose","goosetown"))}
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 100
+        maxResultRecords: 1000
+      title: CPU usage by workload (millicores)
+      type: data
+      visualization: lineChart
+      visualizationSettings:
+        autoSelectVisualization: false
+        chartSettings:
+          legend:
+            position: bottom
+    '8':
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: timeseries mem = avg(dt.kubernetes.container.memory_working_set), by:{k8s.workload.name}, from:now()-7d, filter:{in(k8s.namespace.name, array("goose","goosetown"))}
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 100
+        maxResultRecords: 1000
+      title: Memory working set by workload (bytes)
+      type: data
+      visualization: lineChart
+      visualizationSettings:
+        autoSelectVisualization: false
+        chartSettings:
+          legend:
+            position: bottom
+    '9':
+      content: '## Token flow & tool health'
+      type: markdown
+    '10':
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: timeseries tokens = sum(goose.session_tokens), from:now()-7d
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 100
+        maxResultRecords: 1000
+      title: Session tokens over time (context size of final call)
+      type: data
+      visualization: lineChart
+      visualizationSettings:
+        autoSelectVisualization: false
+        chartSettings:
+          legend:
+            position: bottom
+    '11':
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: 'timeseries calls = sum(goose.tool_calls), comps = sum(goose.tool_completions), from:now()-7d
+
+        | fieldsAdd successRatio = comps[] / calls[]'
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 100
+        maxResultRecords: 1000
+      title: Tool-call success ratio (completions / calls)
+      type: data
+      visualization: lineChart
+      visualizationSettings:
+        autoSelectVisualization: false
+        chartSettings:
+          legend:
+            position: bottom
+    '12':
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: 'fetch spans, from:now()-7d
+
+        | filter span.name == "stream_response_from_provider"
+
+        | summarize calls = count(), by:{gen_ai.request.model}
+
+        | sort calls desc'
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 100
+        maxResultRecords: 1000
+      title: Provider / model mix (LLM calls by model)
+      type: data
+      visualization: categoricalBarChart
+      visualizationSettings:
+        autoSelectVisualization: false
+        chartSettings:
+          legend:
+            position: bottom
+        coloring:
+          colorRules:
+          - colorMode: color-palette
+            colorPalette: purple-rain
+            comparator: = *value*
+            field: DT.name
+            type: string
+            value: ''
+    '13':
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: timeseries done = sum(goose.session_completions), from:now()-7d
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 100
+        maxResultRecords: 1000
+      title: Session completions over time
+      type: data
+      visualization: lineChart
+      visualizationSettings:
+        autoSelectVisualization: false
+        chartSettings:
+          legend:
+            position: bottom
+  variables: []
+  version: 21
