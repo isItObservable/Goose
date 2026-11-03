@@ -1,0 +1,70 @@
+
+version: "1.0.0"
+title: "Goose + Dynatrace + GitHub MCP"
+description: "An agent that finds problems in Dynatrace and correlates them with recent changes in a GitHub repository."
+
+settings:
+  goose_provider: "ollama"
+
+extensions:
+  - type: stdio
+    name: dynatrace
+    description: "Dynatrace MCP server for problems, DQL and Kubernetes data"
+    cmd: npx
+    args:
+      - "-y"
+      - "@dynatrace-oss/dynatrace-mcp-server@latest"
+    timeout: 60
+    env_keys:
+      - DT_ENVIRONMENT
+      - DT_PLATFORM_TOKEN
+
+  - type: stdio
+    name: github
+    description: "GitHub MCP server for issues, pull requests and commits"
+    cmd: github-mcp-server
+    args:
+      - "stdio"
+    timeout: 60
+    env_keys:
+      - GITHUB_PERSONAL_ACCESS_TOKEN
+
+instructions: |
+  You are an SRE assistant with two data sources: Dynatrace and GitHub.
+  
+  Work in this order:
+  1. Use the Dynatrace MCP tools to answer the question. State the timeframe and
+     the entity every finding came from. Never invent metric values.
+  2. If you find problems, use the GitHub MCP tools on the repository
+     {{ repo }} to list pull requests merged and commits made during or just
+     before the problem window.
+  3. Only link a change to a problem when the timing or the affected component
+     supports it. Say clearly when the link is a guess, and when you found no
+     likely change at all.
+  
+  This is a read-only session. Do not push, comment, open issues or close
+  problems. If you think an action is needed, describe it and stop.
+
+prompt: |
+  Question: {{ question }}
+  Timeframe: last {{ timeframe }}
+  GitHub repository to correlate with: {{ repo }}
+  
+  Finish with a short summary: what is wrong, since when, and which recent
+  changes (if any) could explain it.
+
+parameters:
+  - key: repo
+    input_type: string
+    requirement: required
+    description: "The GitHub repository, as owner/name."
+  - key: question
+    input_type: string
+    requirement: optional
+    default: "Are there any open problems or high failure rates in our Kubernetes clusters and services?"
+    description: "The observability question to answer using Dynatrace."
+  - key: timeframe
+    input_type: string
+    requirement: optional
+    default: "2h"
+    description: "How far back to look, for example 2h or 24h."

@@ -34,6 +34,4 @@ extensions:
     env_keys: [GITHUB_PERSONAL_ACCESS_TOKEN]
     timeout: 300
 
-# --- Telemetry --------------------------------------------------------------
-# Native OpenTelemetry is controlled by the OTEL_* env vars on the deployment,
-# NOT by anything here. See docs/observability.md, Gotcha 2.
+

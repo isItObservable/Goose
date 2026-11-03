@@ -1,145 +1,142 @@
-# Goosetown deployment — orchestration + dashboard UI + web chat UI.
-#
-# Two containers:
-#   - goosetown  : real-time "geese on a map" dashboard (goosetown-ui, :4242)
-#   - goose-chat : web chat UI to prompt the agent (chat-ui, :4250)
-#
-# Both share the wall + sessions via an emptyDir so the dashboard can show the
-# chat session's activity. OTel goes to the shared collector.
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: goosetown
-  namespace: goosetown
-  labels:
-    app.kubernetes.io/name: goosetown
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
+
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: goosetown
+    namespace: goosetown
+    labels:
       app.kubernetes.io/name: goosetown
-  template:
-    metadata:
-      labels:
+  spec:
+    replicas: 1
+    strategy:
+      type: Recreate
+    selector:
+      matchLabels:
         app.kubernetes.io/name: goosetown
-    spec:
-      initContainers:
-        # The emptyDir starts empty and hides the image's pre-created wall.log,
-        # so recreate it here so the dashboard resolves the wall at startup.
-        - name: init-goose-state
-          image: 10.0.0.13/k8squad/goosetown:latest
-          command: ["sh", "-c", "mkdir -p /home/goose/.goosetown/walls /home/goose/.local/share/goose && touch /home/goose/.goosetown/walls/wall.log"]
-          volumeMounts:
-            - name: goose-state
-              mountPath: /home/goose/.goosetown
-            - name: goose-state
-              mountPath: /home/goose/.local/share/goose
-      containers:
-        - name: goosetown
-          image: 10.0.0.13/k8squad/goosetown:latest
-          imagePullPolicy: Always
-          ports:
-            - containerPort: 4242
-              name: http
-          env:
-            - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://otel-gateway-collector.observability.svc.cluster.local:4318"
-            - name: OTEL_EXPORTER_OTLP_PROTOCOL
-              value: "http/protobuf"
-            - name: OTEL_SERVICE_NAME
-              value: "goose-goosetown"
-            - name: GOOSE_PROVIDER
-              value: "ollama"
-            - name: GOOSE_MODEL
-              valueFrom:
-                secretKeyRef: { name: goose-secrets, key: OLLAMA_MODEL }
-            - name: OLLAMA_HOST
-              valueFrom:
-                secretKeyRef: { name: goose-secrets, key: OLLAMA_BASE_URL }
-            - name: GITHUB_PERSONAL_ACCESS_TOKEN
-              valueFrom:
-                secretKeyRef: { name: goose-secrets, key: GITHUB_TOKEN }
-            - name: GOOSETOWN_BIND_HOST
-              value: "0.0.0.0"
-          volumeMounts:
-            - name: recipes
-              mountPath: /recipes/01-simple-agent.yaml
-              subPath: 01-simple-agent.yaml
-            - name: recipes
-              mountPath: /recipes/02-dynatrace-mcp.yaml
-              subPath: 02-dynatrace-mcp.yaml
-            - name: recipes
-              mountPath: /recipes/03-github-mcp.yaml
-              subPath: 03-github-mcp.yaml
-            - name: recipes
-              mountPath: /recipes/04-bmad-crew.yaml
-              subPath: 04-bmad-crew.yaml
-            - name: recipes
-              mountPath: /recipes/05-pr-review.yaml
-              subPath: 05-pr-review.yaml
-            - name: goose-state
-              mountPath: /home/goose/.goosetown
-            - name: goose-state
-              mountPath: /home/goose/.local/share/goose
-          readinessProbe:
-            httpGet: { path: "/", port: 4242 }
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          resources:
-            requests: { cpu: 250m, memory: 512Mi }
-            limits: { cpu: "2", memory: 2Gi }
+    template:
+      metadata:
+        labels:
+          app.kubernetes.io/name: goosetown
+      spec:
+        securityContext:
+          fsGroup: 1000
+        initContainers:
+          # A fresh PVC starts empty, so create the directories and wall.log so the
+          # dashboard resolves the wall at startup. touch does not truncate an
+          # existing wall.log, so a restarted pod keeps its wall.
+          - name: init-goose-state
+            image: 10.0.0.13/ghcr/isitobservable/goosetown:sha-9d1d5ba2dabb8f95bb4b3ed826b79f5cd0b7035b
+            command: ["sh", "-c", "mkdir -p /home/goose/.goosetown/walls /home/goose/.local/share/goose && touch /home/goose/.goosetown/walls/wall.log"]
+            volumeMounts:
+              - name: goose-state
+                mountPath: /home/goose/.goosetown
+              - name: goose-state
+                mountPath: /home/goose/.local/share/goose
+        containers:
+          - name: goosetown
+            image: 10.0.0.13/ghcr/isitobservable/goosetown:sha-9d1d5ba2dabb8f95bb4b3ed826b79f5cd0b7035b
+            ports:
+              - containerPort: 4242
+                name: http
+            env:
+              - name: OTEL_EXPORTER_OTLP_ENDPOINT
+                value: "http://otel-gateway-collector.observability.svc.cluster.local:4318"
+              - name: OTEL_EXPORTER_OTLP_PROTOCOL
+                value: "http/protobuf"
+              - name: OTEL_SERVICE_NAME
+                value: "goose-goosetown"
+              - name: GOOSE_PROVIDER
+                value: "ollama"
+              - name: GOOSE_MODEL
+                valueFrom:
+                  secretKeyRef: { name: goose-secrets, key: OLLAMA_MODEL }
+              - name: OLLAMA_HOST
+                valueFrom:
+                  secretKeyRef: { name: goose-secrets, key: OLLAMA_BASE_URL }
+              - name: GITHUB_PERSONAL_ACCESS_TOKEN
+                valueFrom:
+                  secretKeyRef: { name: goose-secrets, key: GITHUB_TOKEN }
+              - name: GOOSETOWN_BIND_HOST
+                value: "0.0.0.0"
+            volumeMounts:
+              - name: recipes
+                mountPath: /recipes/01-simple-agent.yaml
+                subPath: 01-simple-agent.yaml
+              - name: recipes
+                mountPath: /recipes/02-dynatrace-mcp.yaml
+                subPath: 02-dynatrace-mcp.yaml
+              - name: recipes
+                mountPath: /recipes/03-github-mcp.yaml
+                subPath: 03-github-mcp.yaml
+              - name: recipes
+                mountPath: /recipes/04-bmad-crew.yaml
+                subPath: 04-bmad-crew.yaml
+              - name: recipes
+                mountPath: /recipes/05-pr-review.yaml
+                subPath: 05-pr-review.yaml
+              - name: goose-state
+                mountPath: /home/goose/.goosetown
+              - name: goose-state
+                mountPath: /home/goose/.local/share/goose
+            readinessProbe:
+              httpGet: { path: "/", port: 4242 }
+              initialDelaySeconds: 5
+              periodSeconds: 10
+            resources:
+              requests: { cpu: 250m, memory: 512Mi }
+              limits: { cpu: "2", memory: 2Gi }
 
-        - name: goose-chat
-          image: 10.0.0.13/k8squad/goosetown:latest
-          imagePullPolicy: Always
-          command: ["python3", "/opt/chat-ui/chat_server.py", "--host", "0.0.0.0", "--port", "4250"]
-          ports:
-            - containerPort: 4250
-              name: chat
-          env:
-            - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://otel-gateway-collector.observability.svc.cluster.local:4318"
-            - name: OTEL_EXPORTER_OTLP_PROTOCOL
-              value: "http/protobuf"
-            - name: OTEL_SERVICE_NAME
-              value: "goose-goosetown"
-            - name: GOOSE_PROVIDER
-              value: "ollama"
-            - name: GOOSE_MODEL
-              valueFrom:
-                secretKeyRef: { name: goose-secrets, key: OLLAMA_MODEL }
-            - name: OLLAMA_HOST
-              valueFrom:
-                secretKeyRef: { name: goose-secrets, key: OLLAMA_BASE_URL }
-            - name: GITHUB_PERSONAL_ACCESS_TOKEN
-              valueFrom:
-                secretKeyRef: { name: goose-secrets, key: GITHUB_TOKEN }
-            # chat -> crew wiring. Each chat message drives this recipe,
-            # which spawns the five BMAD delegates that light up the map.
-            - name: GOOSE_CHAT_RECIPE
-              value: "/recipes/04-bmad-crew.yaml"
-            # Guardrail: force the GitHub MCP read-only for the whole chat/crew
-            # path so a board prompt can never trigger a repository write (belt &
-            # suspenders on top of --read-only in the crew recipes). For a fully
-            # write-proof UI, mount a read-scoped fine-grained PAT in GITHUB_TOKEN.
-            - name: GITHUB_READ_ONLY
-              value: "1"
-          volumeMounts:
-            - name: goose-state
-              mountPath: /home/goose/.goosetown
-            - name: goose-state
-              mountPath: /home/goose/.local/share/goose
-          readinessProbe:
-            httpGet: { path: "/", port: 4250 }
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          resources:
-            requests: { cpu: 250m, memory: 512Mi }
-            limits: { cpu: "2", memory: 2Gi }
+          - name: goose-chat
+            image: 10.0.0.13/ghcr/isitobservable/goosetown:sha-9d1d5ba2dabb8f95bb4b3ed826b79f5cd0b7035b
+            command: ["python3", "/opt/chat-ui/chat_server.py", "--host", "0.0.0.0", "--port", "4250"]
+            ports:
+              - containerPort: 4250
+                name: chat
+            env:
+              - name: OTEL_EXPORTER_OTLP_ENDPOINT
+                value: "http://otel-gateway-collector.observability.svc.cluster.local:4318"
+              - name: OTEL_EXPORTER_OTLP_PROTOCOL
+                value: "http/protobuf"
+              - name: OTEL_SERVICE_NAME
+                value: "goose-goosetown"
+              - name: GOOSE_PROVIDER
+                value: "ollama"
+              - name: GOOSE_MODEL
+                valueFrom:
+                  secretKeyRef: { name: goose-secrets, key: OLLAMA_MODEL }
+              - name: OLLAMA_HOST
+                valueFrom:
+                  secretKeyRef: { name: goose-secrets, key: OLLAMA_BASE_URL }
+              - name: GITHUB_PERSONAL_ACCESS_TOKEN
+                valueFrom:
+                  secretKeyRef: { name: goose-secrets, key: GITHUB_TOKEN }
+              # chat -> crew wiring. Each chat message drives this recipe,
+              # which spawns the five BMAD delegates that light up the map.
+              - name: GOOSE_CHAT_RECIPE
+                value: "/recipes/04-bmad-crew.yaml"
+              # Guardrail: force the GitHub MCP read-only for the whole chat/crew
+              # path so a board prompt can never trigger a repository write (belt &
+              # suspenders on top of --read-only in the crew recipes). For a fully
+              # write-proof UI, mount a read-scoped fine-grained PAT in GITHUB_TOKEN.
+              - name: GITHUB_READ_ONLY
+                value: "1"
+            volumeMounts:
+              - name: goose-state
+                mountPath: /home/goose/.goosetown
+              - name: goose-state
+                mountPath: /home/goose/.local/share/goose
+            readinessProbe:
+              httpGet: { path: "/", port: 4250 }
+              initialDelaySeconds: 5
+              periodSeconds: 10
+            resources:
+              requests: { cpu: 250m, memory: 512Mi }
+              limits: { cpu: "2", memory: 2Gi }
 
-      volumes:
-        - name: recipes
-          configMap:
-            name: goosetown-recipes
-        - name: goose-state
-          emptyDir: {}
+        volumes:
+          - name: recipes
+            configMap:
+              name: goosetown-recipes
+          - name: goose-state
+            persistentVolumeClaim:
+              claimName: goose-state
