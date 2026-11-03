@@ -4,7 +4,7 @@
 
 [![Watch the episode](https://img.shields.io/badge/YouTube-Is%20It%20Observable-red?logo=youtube)](https://www.youtube.com/@Isitobservable)
 [![Goose](https://img.shields.io/badge/Goose-v1.46.0-00a393)](https://block.github.io/goose/)
-[![Ollama](https://img.shields.io/badge/Ollama-qwen2.5%3A14b-black)](https://ollama.com)
+[![Ollama](https://img.shields.io/badge/Ollama-qwen3.6-black)](https://ollama.com)
 [![MCP](https://img.shields.io/badge/MCP-Dynatrace%20%2B%20GitHub-5b21b6)](https://modelcontextprotocol.io)
 [![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-native-f5a800?logo=opentelemetry)](https://opentelemetry.io)
 [![Dynatrace](https://img.shields.io/badge/Backend-Dynatrace-1496ff)](https://www.dynatrace.com)
@@ -21,7 +21,7 @@ This tutorial takes you from an empty Kubernetes cluster to a fully **observed**
 
 We will also utilize the following components:
 * **Goose `v1.46.0`** — runs *any* LLM, speaks the **Model Context Protocol (MCP)** natively (70+ extensions), and packages work as reusable **YAML recipes**
-* A local **Ollama** host serving `qwen2.5:14b` — the key-free differentiator (nothing leaves your network)
+* A local **Ollama** host serving `qwen3.6` — a tool-capable qwen model, and the key-free differentiator (nothing leaves your network)
 * **Native OpenTelemetry** emitted by Goose itself — no instrumentation code to write
 * An **OpenTelemetry Collector** — a gateway `StatefulSet` (OTLP/HTTP :4318, redact · cumulativetodelta) plus a logs `DaemonSet` (filelog)
 * The **Dynatrace Operator** to report the health of the cluster
@@ -43,7 +43,7 @@ The following tools need to be installed on your machine:
 - curl
 - Helm
 - [`dtctl`](https://github.com/dynatrace-oss/dtctl) (to deploy the Dynatrace dashboards)
-- Network reach to an **Ollama** host with a `qwen2.5:14b` tag pulled (IP set via `$OLLAMA_BASE_URL`)
+- Network reach to an **Ollama** host with a `qwen3.6` tag pulled (IP set via `$OLLAMA_BASE_URL`)
 - A k8S cluster having the admission controller enabled (for the deploy + observe track)
 - A GitHub token (repo scope) for the GitHub MCP demo
 - Goose CLI (optional) to run recipes locally as well as in-cluster — pinned to **v1.46.0** in this tutorial: <https://block.github.io/goose/docs/getting-started/installation>
@@ -96,8 +96,35 @@ Save the value of the token. We will use it later to store it in a k8S secret.
 export DT_INGEST_TOKEN=<YOUR TOKEN VALUE>
 ```
 
-##### 3. Spin up a k8S cluster with the Admission Controller enabled
-Any conformant cluster works — kind/k3s for local, EKS/GKE/AKS, or a Proxmox + Cluster API setup (see [`cluster/`](cluster/)). The pods must be able to reach your Ollama host (`http://$OLLAMA_BASE_URL`) — if the model is unreachable, Goose hangs on its first LLM call.
+##### 3. Spin up a Kubernetes cluster
+
+This tutorial runs on **any** conformant Kubernetes cluster — you only need `kubectl` pointed at one with enough capacity to run Goose, two collectors, and the operators (the admission controller must be enabled for the deploy + observe track). Pick whichever option fits your environment; full notes and a network-values template live in [`cluster/`](cluster/).
+
+> ⚠️ **One hard requirement, whichever option you pick:** the pods must be able to reach your Ollama host at `http://$OLLAMA_BASE_URL`. If the model is unreachable, Goose hangs on its first LLM call. For local clusters (kind/k3d) that means your machine's **LAN IP**, not `localhost`.
+
+**Option A — local (fastest to try).**
+
+```bash
+kind create cluster --name goose      # …or k3s / k3d / minikube — all work
+```
+
+**Option B — managed (EKS / GKE / AKS).** Provision with your usual tooling (`eksctl`, `gcloud`, `az`), then point `kubectl` at it. Everything else in this repo is portable.
+
+**Option C — self-hosted with Cluster API (Proxmox, vSphere, bare metal).** For declarative, reproducible clusters use [Cluster API](https://cluster-api.sigs.k8s.io/). The high-level flow:
+
+1. **Carve non-overlapping IP ranges** for the control-plane VIP, the worker pool, a load-balancer pool (e.g. MetalLB), and any DHCP reserve — copy [`cluster/values.env.example`](cluster/values.env.example) to `cluster/values.env` (git-ignored) and fill in ranges that fit **your** network.
+2. **Render** your infrastructure provider's manifests from those values.
+3. **Apply** them to a management cluster and let the provider create the workload cluster.
+4. **Pull the kubeconfig** and point `kubectl` at the new cluster.
+
+The specifics depend on your provider (CAPMOX for Proxmox, CAPV for vSphere, …) — follow that provider's guide. This repo keeps no infrastructure-specific values.
+
+**Verify** the cluster is ready before continuing:
+
+```bash
+kubectl cluster-info
+kubectl get nodes      # wait until every node is Ready
+```
 
 
 ### Configure — one `.env` file
@@ -113,7 +140,7 @@ Key variables (see [`.env.example`](.env.example) for the full annotated list):
 
 | Variable | Purpose |
 |---|---|
-| `OLLAMA_BASE_URL` / `OLLAMA_MODEL` | Your Ollama host + model (default `qwen2.5:14b`) |
+| `OLLAMA_BASE_URL` / `OLLAMA_MODEL` | Your Ollama host + model (default `qwen3.6`) |
 | `DT_ENVIRONMENT_URL` / `DT_API_TOKEN` / `DT_INGEST_TOKEN` | Dynatrace tenant + the two tokens created above |
 | `OTEL_COLLECTOR_ENDPOINT` | The gateway Service — **must be `:4318` (HTTP)**, never `:4317` (gRPC) |
 | `GITHUB_TOKEN` | For the GitHub MCP demo (repo scope) |
@@ -187,8 +214,8 @@ The operator reads the `DT_API_TOKEN` (stored in a Kubernetes secret) and the `D
 **Goal:** Configure Goose so every agent talks to your local Ollama model. **No OpenAI/Anthropic key is needed** — that's the differentiator. See [`config/goose-config.yaml`](config/goose-config.yaml).
 
 ```bash
-# .env already sets OLLAMA_MODEL=qwen2.5:14b — update OLLAMA_BASE_URL to your host, then:
-curl ${OLLAMA_BASE_URL}/api/tags | grep qwen2.5
+# .env already sets OLLAMA_MODEL=qwen3.6 — update OLLAMA_BASE_URL to your host, then:
+curl ${OLLAMA_BASE_URL}/api/tags | grep qwen3.6
 ```
 
 ### Step 4: Deploy the collectors
@@ -312,10 +339,14 @@ dtctl apply -f dashboards/*.yaml   # or: make dashboards
 ```
 
 ### Goose — Engine Health
-*Is the crew up and succeeding?* Token usage, session duration, and tool-call vs tool-completion counts climb as the crew works, alongside Kubernetes workload health reported by the Dynatrace Operator.
+*Is the crew up and succeeding?* Fleet KPIs (tokens consumed, active agents, tool calls, sessions), pod resource usage for the `goose` and `goosetown` workloads, and token-flow / tool-call-success health — alongside Kubernetes workload health reported by the Dynatrace Operator.
+
+<p align="center"><img src="/image/engine-health-dashboard.png" width="90%" alt="Goose AI — Engine Health dashboard" /></p>
 
 ### Goose — Agent Efficiency
-*Is the crew working well and economically?* The `gen_ai` span tree shows per-tool latency and which model/tools the delegates lean on, keyed by session / delegate name (`bmad-analyst`, `bmad-pm`, `bmad-architect`, `bmad-dev`, `bmad-qa`).
+*Is the crew working well and economically?* Per-agent economics from `gen_ai.agent.name` joined to token/tool spans by `trace.id` — who spends the most tokens, who calls the most tools, which tools are hot vs cold — keyed by session / delegate name (`bmad-analyst`, `bmad-pm`, `bmad-architect`, `bmad-dev`, `bmad-qa`).
+
+<p align="center"><img src="/image/agent-efficiency-dashboard.png" width="90%" alt="Goose AI — Agent Efficiency dashboard" /></p>
 
 > Because the in-process chat crew shares one `service.name` (`goose-goosetown`), the per-role breakdown is by **session / delegate name**, not by `service.name` — see [`docs/observability.md`](docs/observability.md) Gotcha 5. For a write-capable, per-service-name crew, use the ACP form (Step 8.2).
 
@@ -334,7 +365,7 @@ dtctl apply -f dashboards/*.yaml   # or: make dashboards
 ├── k8s/                   ← operators, collectors, Goose deployment
 ├── dashboards/            ← Dynatrace dashboards (dtctl YAML)
 ├── chat-ui/               ← goosetown chat interface + map
-├── image/                 ← logos + Dynatrace setup screenshots
+├── image/                 ← logos + dashboard & Dynatrace setup screenshots
 └── scripts/               ← numbered, idempotent deploy scripts
 ```
 
